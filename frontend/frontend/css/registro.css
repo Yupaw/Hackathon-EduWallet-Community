@@ -25,7 +25,8 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg,  #4b5563);
+  /*background: linear-gradient(135deg,  #ffecd2);*/
+  background: url("../img/logo.png") no-repeat center center/cover;
 }
 
 /* CONTENEDOR PRINCIPAL */
@@ -50,7 +51,7 @@ body {
 /* LADO IZQUIERDO */
 .auth > .card .left {
    padding: 40px 36px 28px;
-  background: #fff;
+  background: #E6E6FA;
   text-align: center;
 }
 
@@ -92,7 +93,7 @@ body {
   transform: translateY(-50%);
   background: transparent;
   border: none;
-  color: #2563EB;
+  color: #5a31d3;
   cursor: pointer;
   font-weight: 600;
 }
@@ -127,16 +128,7 @@ body {
   position: relative;
   display: block;
 }
-/*.brand::after {
-  content: "";
-  position: absolute;
-  right: -14px;
-  top: 4px;
-  width: 10px;
-  height: 22px;
-  background: var(--blue);
-  border-radius: 3px;
-}*/
+
 
 /* SUBTÍTULO */
 .subtitle {
@@ -195,3 +187,37 @@ body {
   max-width: 80%;
   height: auto;
 }
+.lang-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: var(--muted);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.2s ease;
+}
+
+.lang-btn:hover {
+  background:  radial-gradient(120% 120% at 0% 0%, #5a31d3 0%, #3a0ca3 60%, #2a0a73 100%); /* un azul un poco más fuerte */
+}
+.alt-login {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.alt-login a {
+  color: var(--blue);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.alt-login a:hover {
+  text-decoration: underline;
+}
+

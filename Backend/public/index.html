@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>EduWallet Tandas</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    body { font-family: ui-sans-serif, system-ui; margin: 16px; }
+    .card { border:1px solid #ddd; border-radius:12px; padding:16px; margin-bottom:16px; }
+    input, select, button { padding:8px; margin:4px 0; width:100%; max-width:420px }
+    .row { display:flex; gap:12px; flex-wrap:wrap }
+  </style>
+</head>
+<body>
+  <h1>EduWallet — Tandas</h1>
+
+  <div class="card">
+    <h2>Crear tanda</h2>
+    <input id="tNombre" placeholder="Nombre de la tanda"/>
+    <input id="tMonto" placeholder="Monto por ronda (ej. 100)" value="100"/>
+    <select id="tPeriodo">
+      <option value="semanal">Semanal</option>
+      <option value="quincenal">Quincenal</option>
+      <option value="mensual">Mensual</option>
+    </select>
+    <input id="tCreador" placeholder="Wallet URL del creador (ej. https://ilp.../test2carlos)"/>
+    <button onclick="crear()">Crear</button>
+    <pre id="outCrear"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Unirse a tanda</h2>
+    <input id="jTandaId" placeholder="ID de tanda"/>
+    <input id="jNombre" placeholder="Tu nombre"/>
+    <input id="jWallet" placeholder="Tu wallet URL"/>
+    <button onclick="join()">Unirse</button>
+    <pre id="outJoin"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Contribuir</h2>
+    <input id="cTandaId" placeholder="ID de tanda"/>
+    <input id="cMiembroId" placeholder="Tu miembroId"/>
+    <button onclick="contribuir()">Generar cuota</button>
+    <pre id="outContribuir"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Confirmar pago</h2>
+    <input id="fTandaId" placeholder="ID de tanda"/>
+    <input id="fMiembroId" placeholder="Tu miembroId"/>
+    <button onclick="confirmar()">Confirmar</button>
+    <pre id="outConfirmar"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Avanzar ronda</h2>
+    <input id="aTandaId" placeholder="ID de tanda"/>
+    <button onclick="avanzar()">Avanzar</button>
+    <pre id="outAvanzar"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Status</h2>
+    <input id="sTandaId" placeholder="ID de tanda"/>
+    <button onclick="status()">Ver status</button>
+    <pre id="outStatus"></pre>
+  </div>
+
+<script>
+async function crear(){
+  const body = {
+    nombre: tNombre.value,
+    monto: tMonto.value,
+    periodicidad: tPeriodo.value,
+    creadorWalletUrl: tCreador.value
+  };
+  const r = await fetch('/api/tandas', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  outCrear.textContent = JSON.stringify(await r.json(), null, 2);
+}
+async function join(){
+  const r = await fetch(`/api/tandas/${jTandaId.value}/join`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ nombre: jNombre.value, walletUrl: jWallet.value })
+  });
+  outJoin.textContent = JSON.stringify(await r.json(), null, 2);
+}
+async function contribuir(){
+  const r = await fetch(`/api/tandas/${cTandaId.value}/contribute`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ miembroId: cMiembroId.value })
+  });
+  outContribuir.textContent = JSON.stringify(await r.json(), null, 2);
+}
+async function confirmar(){
+  const r = await fetch(`/api/tandas/${fTandaId.value}/confirm`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ miembroId: fMiembroId.value })
+  });
+  outConfirmar.textContent = JSON.stringify(await r.json(), null, 2);
+}
+async function avanzar(){
+  const r = await fetch(`/api/tandas/${aTandaId.value}/advance`, { method:'POST' });
+  outAvanzar.textContent = JSON.stringify(await r.json(), null, 2);
+}
+async function status(){
+  const r = await fetch(`/api/tandas/${sTandaId.value}/status`);
+  outStatus.textContent = JSON.stringify(await r.json(), null, 2);
+}
+</script>
+</body>
+</html>

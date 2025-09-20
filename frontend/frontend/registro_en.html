@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EduWallet · Sign Up</title>
+  <link rel="stylesheet" href="css/registro.css">
+</head>
+<body>
+  <main class="auth">
+    <section class="card">
+      <div class="left">
+        <!-- Button to switch to Spanish -->
+<a href="../frontend/registro.html" class="lang-btn">ES</a>
+
+        <h1 class="brand">EduWallet Community</h1>
+        <p class="subtitle">Sign up to discover and take courses.</p> <!--BUSINESS TASK-->
+
+        <form id="signupForm" novalidate>
+          <label class="field">
+            <input type="text" name="email" required placeholder="Phone number or email address">
+          </label>
+
+          <label class="field">
+            <input type="password" name="password" required placeholder="Password" minlength="6" id="password">
+            <button type="button" class="showpass" aria-label="Show password" id="togglePass">Show</button>
+          </label>
+
+          <label class="field">
+            <input type="text" name="fullname" required placeholder="Full name">
+          </label>
+
+          <label class="field">
+            <input type="text" name="username" required placeholder="Username">
+          </label>
+
+          <label class="field">
+            <select name="gender" required>
+              <option value="" disabled selected>Select your gender</option>
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+              <option value="na">Prefer not to say</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <input type="date" name="birthdate" required placeholder="Date of birth">
+          </label>
+
+          <button class="btn btn--primary" type="submit">Sign Up</button>
+        </form>
+        <p class="alt-login">
+  Already have an account? <a href="login.html">Log in</a>
+</p>
+
+      </div>
+
+      <!-- RIGHT SIDE -->
+      <div class="right">
+        <h2>Welcome!</h2>
+        <p>TEST AREA</p> <!--BUSINESS TASK-->
+        
+        <!-- Add image here -->
+        <img src="../frontend/img/wallet.png" alt="EduLink illustration" class="welcome-img">
+      </div>
+    </section>
+  </main>
+
+  <script src="js/registro.js"></script>
+</body>
+</html>
