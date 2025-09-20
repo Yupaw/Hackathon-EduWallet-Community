@@ -5,107 +5,427 @@
   <title>EduWallet Tandas</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <style>
-    body { font-family: ui-sans-serif, system-ui; margin: 16px; }
-    .card { border:1px solid #ddd; border-radius:12px; padding:16px; margin-bottom:16px; }
-    input, select, button { padding:8px; margin:4px 0; width:100%; max-width:420px }
-    .row { display:flex; gap:12px; flex-wrap:wrap }
+    body { 
+      font-family: ui-sans-serif, system-ui; 
+      margin: 16px; 
+      background-color: #f5f5f5;
+    }
+    .card { 
+      border: 1px solid #ddd; 
+      border-radius: 12px; 
+      padding: 20px; 
+      margin-bottom: 20px; 
+      background: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    input, select, button { 
+      padding: 10px; 
+      margin: 6px 0; 
+      width: 100%; 
+      max-width: 420px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    button {
+      background-color: #4f46e5;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    button:hover {
+      background-color: #3730a3;
+    }
+    pre {
+      background: #f8f9fa;
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+    .success { color: #059669; }
+    .error { color: #dc2626; }
+    h1 { color: #1f2937; }
+    h2 { color: #374151; margin-top: 0; }
   </style>
 </head>
 <body>
+  <!--aqui empieza-->
+
+  <!--AQUI TERMINA-->
   <h1>EduWallet — Tandas</h1>
 
   <div class="card">
     <h2>Crear tanda</h2>
     <input id="tNombre" placeholder="Nombre de la tanda"/>
-    <input id="tMonto" placeholder="Monto por ronda (ej. 100)" value="100"/>
-    <select id="tPeriodo">
+    <input id="tDescripcion" placeholder="Descripción (opcional)"/>
+    <input id="tMontoTotal" placeholder="Monto total de la tanda" value="1000"/>
+    <input id="tParticipantes" placeholder="Número de participantes" value="5"/>
+    <select id="tFrecuencia">
       <option value="semanal">Semanal</option>
       <option value="quincenal">Quincenal</option>
       <option value="mensual">Mensual</option>
     </select>
-    <input id="tCreador" placeholder="Wallet URL del creador (ej. https://ilp.../test2carlos)"/>
+    <input id="tCreadorWallet" placeholder="Tu wallet URL (ej. https://ilp.interledger-test.dev/test2carlos)"/>
+    <input id="tCreadorNombre" placeholder="Tu nombre"/>
     <button onclick="crear()">Crear</button>
     <pre id="outCrear"></pre>
   </div>
 
   <div class="card">
     <h2>Unirse a tanda</h2>
-    <input id="jTandaId" placeholder="ID de tanda"/>
+    <input id="jInviteCode" placeholder="Código de invitación"/>
     <input id="jNombre" placeholder="Tu nombre"/>
     <input id="jWallet" placeholder="Tu wallet URL"/>
-    <button onclick="join()">Unirse</button>
-    <pre id="outJoin"></pre>
+    <button onclick="unirse()">Unirse</button>
+    <pre id="outUnirse"></pre>
   </div>
 
   <div class="card">
-    <h2>Contribuir</h2>
+    <h2>Información de invitación</h2>
+    <input id="iInviteCode" placeholder="Código de invitación"/>
+    <button onclick="verInvitacion()">Ver información</button>
+    <pre id="outInvitacion"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Ver detalles de tanda</h2>
+    <input id="vTandaId" placeholder="ID de tanda"/>
+    <button onclick="verTanda()">Ver detalles</button>
+    <pre id="outVerTanda"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Iniciar ronda de pagos</h2>
+    <input id="rTandaId" placeholder="ID de tanda"/>
+    <button onclick="iniciarRonda()">Iniciar ronda</button>
+    <pre id="outRonda"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Realizar pago</h2>
+    <input id="pTandaId" placeholder="ID de tanda"/>
+    <input id="pWalletUrl" placeholder="Tu wallet URL"/>
+    <input id="pMonto" placeholder="Monto a pagar"/>
+    <button onclick="realizarPago()">Realizar pago</button>
+    <pre id="outPago"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Completar pago autorizado</h2>
     <input id="cTandaId" placeholder="ID de tanda"/>
-    <input id="cMiembroId" placeholder="Tu miembroId"/>
-    <button onclick="contribuir()">Generar cuota</button>
-    <pre id="outContribuir"></pre>
+    <input id="cPagoId" placeholder="ID del pago"/>
+    <input id="cContinueUri" placeholder="Continue URI"/>
+    <input id="cContinueToken" placeholder="Continue Access Token"/>
+    <button onclick="completarPago()">Completar pago</button>
+    <pre id="outCompletar"></pre>
   </div>
 
   <div class="card">
-    <h2>Confirmar pago</h2>
-    <input id="fTandaId" placeholder="ID de tanda"/>
-    <input id="fMiembroId" placeholder="Tu miembroId"/>
-    <button onclick="confirmar()">Confirmar</button>
-    <pre id="outConfirmar"></pre>
+    <h2>Mis tandas</h2>
+    <input id="mWalletLink" placeholder="Tu wallet URL"/>
+    <button onclick="misTandas()">Ver mis tandas</button>
+    <div id="outMisTandas"></div>
   </div>
 
   <div class="card">
-    <h2>Avanzar ronda</h2>
-    <input id="aTandaId" placeholder="ID de tanda"/>
-    <button onclick="avanzar()">Avanzar</button>
-    <pre id="outAvanzar"></pre>
-  </div>
-
-  <div class="card">
-    <h2>Status</h2>
-    <input id="sTandaId" placeholder="ID de tanda"/>
-    <button onclick="status()">Ver status</button>
-    <pre id="outStatus"></pre>
+    <h2>Estado del servidor</h2>
+    <button onclick="verificarServidor()">Verificar conexión</button>
+    <pre id="outServidor"></pre>
   </div>
 
 <script>
-async function crear(){
-  const body = {
-    nombre: tNombre.value,
-    monto: tMonto.value,
-    periodicidad: tPeriodo.value,
-    creadorWalletUrl: tCreador.value
-  };
-  const r = await fetch('/api/tandas', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-  outCrear.textContent = JSON.stringify(await r.json(), null, 2);
+// Función helper para mostrar resultados
+function mostrarResultado(elementId, data, esError = false) {
+  const elemento = document.getElementById(elementId);
+  
+  // Si es la sección de mis tandas, crear vista especializada
+  if (elementId === 'outMisTandas' && data.ok && data.tandas) {
+    mostrarTandas(elemento, data.tandas);
+    return;
+  }
+  
+  // Si es resultado de crear tanda, mostrar info útil
+  if (elementId === 'outCrear' && data.ok && data.tanda) {
+    mostrarTandaCreada(elemento, data.tanda);
+    return;
+  }
+  
+  // Si es info de invitación, mostrar de manera legible
+  if (elementId === 'outInvitacion' && data.ok && data.tanda) {
+    mostrarInfoInvitacion(elemento, data.tanda);
+    return;
+  }
+  
+  // Si es detalles de tanda, mostrar estructurado
+  if (elementId === 'outVerTanda' && data.ok && data.tanda) {
+    mostrarDetallesTanda(elemento, data.tanda);
+    return;
+  }
+  
+  // Para otros casos, mostrar JSON
+  elemento.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+  elemento.className = esError ? 'error' : 'success';
 }
-async function join(){
-  const r = await fetch(`/api/tandas/${jTandaId.value}/join`, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ nombre: jNombre.value, walletUrl: jWallet.value })
+
+function mostrarTandas(elemento, tandas) {
+  if (tandas.length === 0) {
+    elemento.innerHTML = '<p>No participas en ninguna tanda.</p>';
+    return;
+  }
+  
+  let html = '<div style="margin-top: 10px;">';
+  tandas.forEach(tanda => {
+    const estadoColor = tanda.estado === 'activa' ? '#059669' : 
+                       tanda.estado === 'finalizada' ? '#6b7280' : '#f59e0b';
+    
+    html += `
+      <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin: 10px 0; background: white;">
+        <h3 style="margin: 0 0 10px 0; color: #1f2937;">${tanda.nombre}</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px;">
+          <div><strong>Estado:</strong> <span style="color: ${estadoColor};">${tanda.estado}</span></div>
+          <div><strong>Tu posición:</strong> ${tanda.miPosicion}</div>
+          <div><strong>Ya recibiste:</strong> ${tanda.yaRecibi ? 'Sí' : 'No'}</div>
+          <div><strong>Monto por persona:</strong> ${tanda.montoPorPersona}</div>
+          <div><strong>Ronda actual:</strong> ${tanda.rondaActual}/${tanda.totalRondas}</div>
+          <div><strong>Próximo receptor:</strong> ${tanda.proximoReceptor ? `${tanda.proximoReceptor.nombre} (Pos. ${tanda.proximoReceptor.posicion})` : 'N/A'}</div>
+        </div>
+        <div style="margin-top: 10px;">
+          <button onclick="verTandaCompleta('${tanda.id}')" style="padding: 5px 10px; font-size: 12px;">Ver detalles completos</button>
+        </div>
+      </div>
+    `;
   });
-  outJoin.textContent = JSON.stringify(await r.json(), null, 2);
+  html += '</div>';
+  
+  elemento.innerHTML = html;
 }
-async function contribuir(){
-  const r = await fetch(`/api/tandas/${cTandaId.value}/contribute`, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ miembroId: cMiembroId.value })
+
+function mostrarTandaCreada(elemento, tanda) {
+  elemento.innerHTML = `
+    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 15px; margin-top: 10px;">
+      <h3 style="color: #059669; margin: 0 0 10px 0;">¡Tanda creada exitosamente!</h3>
+      <div style="margin: 5px 0;"><strong>Nombre:</strong> ${tanda.nombre}</div>
+      <div style="margin: 5px 0;"><strong>ID:</strong> <code>${tanda.id}</code></div>
+      <div style="margin: 5px 0;"><strong>Código de invitación:</strong> <code style="background: #dcfce7; padding: 2px 6px; border-radius: 4px;">${tanda.inviteCode}</code></div>
+      <div style="margin: 5px 0;"><strong>Monto por persona:</strong> ${tanda.montoPorPersona}</div>
+      <div style="margin: 5px 0;"><strong>Participantes:</strong> ${tanda.participantesActuales}/${tanda.participantesRequeridos}</div>
+      <div style="margin: 10px 0; padding: 10px; background: white; border-radius: 4px;">
+        <strong>Enlace para invitar:</strong><br>
+        <input type="text" value="${tanda.inviteUrl}" readonly style="width: 100%; font-size: 12px; padding: 5px;" onclick="this.select()">
+        <small>Comparte este enlace o el código <strong>${tanda.inviteCode}</strong> con otros participantes</small>
+      </div>
+    </div>
+  `;
+}
+
+function mostrarInfoInvitacion(elemento, tanda) {
+  const puedeUnirse = tanda.puedeUnirse;
+  
+  elemento.innerHTML = `
+    <div style="border: 1px solid ${puedeUnirse ? '#bbf7d0' : '#fed7aa'}; border-radius: 8px; padding: 15px; margin-top: 10px; background: ${puedeUnirse ? '#f0fdf4' : '#fffbeb'};">
+      <h3 style="color: ${puedeUnirse ? '#059669' : '#ea580c'}; margin: 0 0 10px 0;">
+        ${tanda.nombre}
+        ${puedeUnirse ? '' : ' (No disponible)'}
+      </h3>
+      <div style="margin: 5px 0;"><strong>Descripción:</strong> ${tanda.descripcion || 'Sin descripción'}</div>
+      <div style="margin: 5px 0;"><strong>Monto por persona:</strong> ${tanda.montoPorPersona}</div>
+      <div style="margin: 5px 0;"><strong>Frecuencia:</strong> ${tanda.frecuencia}</div>
+      <div style="margin: 5px 0;"><strong>Creador:</strong> ${tanda.creadorNombre}</div>
+      <div style="margin: 5px 0;"><strong>Participantes:</strong> ${tanda.participantesActuales}/${tanda.participantesRequeridos}</div>
+      <div style="margin: 5px 0;"><strong>Estado:</strong> ${tanda.estado}</div>
+      
+      ${puedeUnirse ? 
+        '<div style="margin-top: 10px; color: #059669;"><strong>✓ Puedes unirte a esta tanda</strong></div>' : 
+        '<div style="margin-top: 10px; color: #ea580c;"><strong>✗ Esta tanda ya no acepta participantes</strong></div>'
+      }
+    </div>
+  `;
+}
+
+function mostrarDetallesTanda(elemento, tanda) {
+  let html = `
+    <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin-top: 10px; background: white;">
+      <h3 style="color: #1f2937; margin: 0 0 15px 0;">${tanda.nombre}</h3>
+      
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+        <div><strong>Estado:</strong> ${tanda.estado}</div>
+        <div><strong>Monto por persona:</strong> ${tanda.montoPorPersona}</div>
+        <div><strong>Frecuencia:</strong> ${tanda.frecuencia}</div>
+        <div><strong>Creador:</strong> ${tanda.creadorNombre}</div>
+      </div>
+      
+      <h4 style="color: #374151;">Participantes (${tanda.participantes.length}):</h4>
+      <div style="margin: 10px 0;">
+  `;
+  
+  tanda.participantes.forEach((participante, index) => {
+    const esCreador = participante.esCreador ? ' 👑' : '';
+    const yaRecibio = participante.yaRecibio ? ' ✅' : '';
+    
+    html += `
+      <div style="padding: 8px; margin: 4px 0; background: #f9fafb; border-radius: 4px; display: flex; justify-content: space-between;">
+        <span><strong>Pos. ${participante.posicion}:</strong> ${participante.nombre}${esCreador}${yaRecibio}</span>
+        <span style="font-size: 12px; color: #6b7280;">ID: ${participante.id.substring(0,8)}...</span>
+      </div>
+    `;
   });
-  outContribuir.textContent = JSON.stringify(await r.json(), null, 2);
+  
+  html += `
+      </div>
+      
+      <div style="margin-top: 15px; padding: 10px; background: #f8fafc; border-radius: 4px;">
+        <small><strong>Leyenda:</strong> 👑 Creador | ✅ Ya recibió su ronda</small>
+      </div>
+    </div>
+  `;
+  
+  elemento.innerHTML = html;
 }
-async function confirmar(){
-  const r = await fetch(`/api/tandas/${fTandaId.value}/confirm`, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ miembroId: fMiembroId.value })
-  });
-  outConfirmar.textContent = JSON.stringify(await r.json(), null, 2);
+
+function verTandaCompleta(tandaId) {
+  // Llenar el campo de ver tanda y ejecutar la función
+  document.getElementById('vTandaId').value = tandaId;
+  verTanda();
 }
-async function avanzar(){
-  const r = await fetch(`/api/tandas/${aTandaId.value}/advance`, { method:'POST' });
-  outAvanzar.textContent = JSON.stringify(await r.json(), null, 2);
+
+async function verificarServidor() {
+  try {
+    const response = await fetch('/api/health');
+    const data = await response.json();
+    mostrarResultado('outServidor', data, !response.ok);
+  } catch (error) {
+    mostrarResultado('outServidor', { error: 'No se pudo conectar con el servidor' }, true);
+  }
 }
-async function status(){
-  const r = await fetch(`/api/tandas/${sTandaId.value}/status`);
-  outStatus.textContent = JSON.stringify(await r.json(), null, 2);
+
+async function crear() {
+  try {
+    const body = {
+      nombre: tNombre.value,
+      descripcion: tDescripcion.value,
+      montoTotal: parseInt(tMontoTotal.value),
+      numeroParticipantes: parseInt(tParticipantes.value),
+      frecuencia: tFrecuencia.value,
+      creadorWalletLink: tCreadorWallet.value,
+      creadorNombre: tCreadorNombre.value
+    };
+    
+    const response = await fetch('/api/tandas/create', { 
+      method: 'POST', 
+      headers: {'Content-Type': 'application/json'}, 
+      body: JSON.stringify(body)
+    });
+    
+    const data = await response.json();
+    mostrarResultado('outCrear', data, !response.ok);
+  } catch (error) {
+    mostrarResultado('outCrear', { error: error.message }, true);
+  }
+}
+
+async function unirse() {
+  try {
+    const response = await fetch(`/api/tandas/join/${jInviteCode.value}`, {
+      method: 'POST', 
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ 
+        participanteNombre: jNombre.value, 
+        participanteWalletLink: jWallet.value 
+      })
+    });
+    
+    const data = await response.json();
+    mostrarResultado('outUnirse', data, !response.ok);
+  } catch (error) {
+    mostrarResultado('outUnirse', { error: error.message }, true);
+  }
+}
+
+async function verInvitacion() {
+  try {
+    const response = await fetch(`/api/tandas/invite/${iInviteCode.value}`);
+    const data = await response.json();
+    mostrarResultado('outInvitacion', data, !response.ok);
+  } catch (error) {
+    mostrarResultado('outInvitacion', { error: error.message }, true);
+  }
+}
+
+async function verTanda() {
+  try {
+    const response = await fetch(`/api/tandas/${vTandaId.value}`);
+    const data = await response.json();
+    mostrarResultado('outVerTanda', data, !response.ok);
+  } catch (error) {
+    mostrarResultado('outVerTanda', { error: error.message }, true);
+  }
+}
+
+async function iniciarRonda() {
+  try {
+    const response = await fetch(`/api/tandas/${rTandaId.value}/start-round`, { 
+      method: 'POST' 
+    });
+    const data = await response.json();
+    mostrarResultado('outRonda', data, !response.ok);
+  } catch (error) {
+    mostrarResultado('outRonda', { error: error.message }, true);
+  }
+}
+
+async function realizarPago() {
+  try {
+    const response = await fetch(`/api/tandas/${pTandaId.value}/pay`, {
+      method: 'POST', 
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ 
+        participanteWalletUrl: pWalletUrl.value,
+        monto: parseInt(pMonto.value)
+      })
+    });
+    
+    const data = await response.json();
+    mostrarResultado('outPago', data, !response.ok);
+    
+    // Si requiere autorización, mostrar URL
+    if (data.requiresAuth && data.authUrl) {
+      const mensaje = `\n\n¡AUTORIZACIÓN REQUERIDA!\nVe a: ${data.authUrl}\nDespués usa "Completar pago autorizado" con:\n- Pago ID: ${data.pago.id}\n- Continue URI: ${data.pago.continueUri}\n- Continue Token: ${data.pago.continueAccessToken}`;
+      document.getElementById('outPago').textContent += mensaje;
+    }
+  } catch (error) {
+    mostrarResultado('outPago', { error: error.message }, true);
+  }
+}
+
+async function completarPago() {
+  try {
+    const response = await fetch(`/api/tandas/${cTandaId.value}/complete-payment`, {
+      method: 'POST', 
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ 
+        pagoId: cPagoId.value,
+        continueUri: cContinueUri.value,
+        continueAccessToken: cContinueToken.value
+      })
+    });
+    
+    const data = await response.json();
+    mostrarResultado('outCompletar', data, !response.ok);
+  } catch (error) {
+    mostrarResultado('outCompletar', { error: error.message }, true);
+  }
+}
+
+async function misTandas() {
+  try {
+    const walletLink = encodeURIComponent(mWalletLink.value);
+    const response = await fetch(`/api/tandas/participant/${walletLink}`);
+    const data = await response.json();
+    mostrarResultado('outMisTandas', data, !response.ok);
+  } catch (error) {
+    mostrarResultado('outMisTandas', { error: error.message }, true);
+  }
 }
 </script>
 </body>

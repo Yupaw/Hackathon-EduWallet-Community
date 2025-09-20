@@ -1,0 +1,715 @@
+// routes/tandas.js — Backend para sistema de tandas
+import express from "express";
+import { v4 as uuidv4 } from "uuid";
+
+const router = express.Router();
+
+// Base de datos en memoria (en producción usar una DB real)
+const tandas = new Map();
+const participantes = new Map();
+
+// Utilidad para generar códigos de invitación únicos
+function generateInviteCode() {
+  return uuidv4().substring(0, 8);
+}
+
+// Utilidad para extraer wallet URL del formato $ilp.domain/account
+function parseWalletLink(link) {
+  if (link.startsWith('$')) {
+    return `https://${link.substring(1)}`;
+  }
+  return link;
+}
+
+// === CREAR NUEVA TANDA ===
+router.post("/create", (req, res) => {
+  try {
+    const {
+      nombre,
+      descripcion,
+      montoTotal,
+      numeroParticipantes,
+      frecuencia, // "semanal", "quincenal", "mensual"
+      creadorWalletLink,
+      creadorNombre
+    } = req.body;
+
+    // Validaciones
+    if (!nombre || !montoTotal || !numeroParticipantes || !creadorWalletLink || !creadorNombre) {
+      return res.status(400).json({
+        error: "Faltan campos requeridos: nombre, montoTotal, numeroParticipantes, creadorWalletLink, creadorNombre"
+      });
+    }
+
+    if (numeroParticipantes < 2 || numeroParticipantes > 20) {
+      return res.status(400).json({
+        error: "El número de participantes debe estar entre 2 y 20"
+      });
+    }
+
+    const tandaId = uuidv4();
+    const inviteCode = generateInviteCode();
+    const creadorWalletUrl = parseWalletLink(creadorWalletLink);
+    
+    const montoPorPersona = Math.round(montoTotal / numeroParticipantes);
+    
+    const tanda = {
+      id: tandaId,
+      nombre,
+      descripcion: descripcion || "",
+      montoTotal: Number(montoTotal),
+      numeroParticipantes: Number(numeroParticipantes),
+      montoPorPersona,
+      frecuencia: frecuencia || "semanal",
+      inviteCode,
+      creadorWalletUrl,
+      creadorNombre,
+      estado: "abierta", // "abierta", "completa", "activa", "finalizada"
+      fechaCreacion: new Date().toISOString(),
+      participantes: [
+        {
+          id: uuidv4(),
+          nombre: creadorNombre,
+          walletUrl: creadorWalletUrl,
+          esCreador: true,
+          fechaUnion: new Date().toISOString(),
+          posicion: 1, // El creador siempre es primero
+          yaRecibio: false,
+          pagosRealizados: []
+        }
+      ],
+      rondas: [],
+      proximaRonda: null,
+      inviteUrl: `${req.protocol}://${req.get('host')}/join/${inviteCode}`
+    };
+
+    tandas.set(tandaId, tanda);
+    
+    res.status(201).json({
+      ok: true,
+      tanda: {
+        id: tandaId,
+        nombre,
+        inviteCode,
+        inviteUrl: tanda.inviteUrl,
+        montoPorPersona,
+        participantesActuales: 1,
+        participantesRequeridos: numeroParticipantes
+      }
+    });
+    
+  } catch (err) {
+    console.error("ERROR CREAR TANDA:", err);
+    res.status(500).json({
+      error: "Error al crear la tanda",
+      message: err.message
+    });
+  }
+});
+
+// === UNIRSE A TANDA POR CÓDIGO ===
+router.post("/join/:inviteCode", (req, res) => {
+  try {
+    const { inviteCode } = req.params;
+    const { participanteNombre, participanteWalletLink } = req.body;
+
+    if (!participanteNombre || !participanteWalletLink) {
+      return res.status(400).json({
+        error: "Faltan participanteNombre y participanteWalletLink"
+      });
+    }
+
+    // Buscar tanda por código de invitación
+    const tanda = Array.from(tandas.values()).find(t => t.inviteCode === inviteCode);
+    
+    if (!tanda) {
+      return res.status(404).json({
+        error: "Código de invitación inválido o tanda no encontrada"
+      });
+    }
+
+    if (tanda.estado !== "abierta") {
+      return res.status(400).json({
+        error: "Esta tanda ya no acepta nuevos participantes"
+      });
+    }
+
+    const participanteWalletUrl = parseWalletLink(participanteWalletLink);
+
+    // Verificar que no esté ya en la tanda
+    const yaEstaEnTanda = tanda.participantes.some(p => p.walletUrl === participanteWalletUrl);
+    if (yaEstaEnTanda) {
+      return res.status(400).json({
+        error: "Esta wallet ya está registrada en la tanda"
+      });
+    }
+
+    // Verificar que no esté llena
+    if (tanda.participantes.length >= tanda.numeroParticipantes) {
+      return res.status(400).json({
+        error: "La tanda ya está completa"
+      });
+    }
+
+    // Agregar nuevo participante
+    const nuevoParticipante = {
+      id: uuidv4(),
+      nombre: participanteNombre,
+      walletUrl: participanteWalletUrl,
+      esCreador: false,
+      fechaUnion: new Date().toISOString(),
+      posicion: tanda.participantes.length + 1,
+      yaRecibio: false,
+      pagosRealizados: []
+    };
+
+    tanda.participantes.push(nuevoParticipante);
+
+    // Si se completó, cambiar estado y programar primera ronda
+    if (tanda.participantes.length === tanda.numeroParticipantes) {
+      tanda.estado = "completa";
+      // Aquí podrías programar el inicio automático de la primera ronda
+      scheduleFirstRound(tanda);
+    }
+
+    res.json({
+      ok: true,
+      mensaje: "Te has unido a la tanda exitosamente",
+      tanda: {
+        id: tanda.id,
+        nombre: tanda.nombre,
+        tuPosicion: nuevoParticipante.posicion,
+        participantesActuales: tanda.participantes.length,
+        participantesRequeridos: tanda.numeroParticipantes,
+        estado: tanda.estado,
+        montoPorPersona: tanda.montoPorPersona
+      }
+    });
+
+  } catch (err) {
+    console.error("ERROR UNIRSE TANDA:", err);
+    res.status(500).json({
+      error: "Error al unirse a la tanda",
+      message: err.message
+    });
+  }
+});
+
+// === VER DETALLES DE TANDA ===
+router.get("/:tandaId", (req, res) => {
+  try {
+    const { tandaId } = req.params;
+    const tanda = tandas.get(tandaId);
+    
+    if (!tanda) {
+      return res.status(404).json({
+        error: "Tanda no encontrada"
+      });
+    }
+
+    res.json({
+      ok: true,
+      tanda: {
+        ...tanda,
+        // Ocultar información sensible si es necesario
+        participantes: tanda.participantes.map(p => ({
+          id: p.id,
+          nombre: p.nombre,
+          posicion: p.posicion,
+          yaRecibio: p.yaRecibio,
+          esCreador: p.esCreador
+          // No mostrar walletUrl por privacidad
+        }))
+      }
+    });
+  } catch (err) {
+    console.error("ERROR VER TANDA:", err);
+    res.status(500).json({
+      error: "Error al obtener la tanda",
+      message: err.message
+    });
+  }
+});
+
+// === OBTENER TANDA POR CÓDIGO DE INVITACIÓN (para preview) ===
+router.get("/invite/:inviteCode", (req, res) => {
+  try {
+    const { inviteCode } = req.params;
+    const tanda = Array.from(tandas.values()).find(t => t.inviteCode === inviteCode);
+    
+    if (!tanda) {
+      return res.status(404).json({
+        error: "Código de invitación inválido"
+      });
+    }
+
+    res.json({
+      ok: true,
+      tanda: {
+        id: tanda.id,
+        nombre: tanda.nombre,
+        descripcion: tanda.descripcion,
+        montoPorPersona: tanda.montoPorPersona,
+        participantesActuales: tanda.participantes.length,
+        participantesRequeridos: tanda.numeroParticipantes,
+        estado: tanda.estado,
+        frecuencia: tanda.frecuencia,
+        creadorNombre: tanda.creadorNombre,
+        puedeUnirse: tanda.estado === "abierta" && tanda.participantes.length < tanda.numeroParticipantes
+      }
+    });
+  } catch (err) {
+    console.error("ERROR VER INVITACIÓN:", err);
+    res.status(500).json({
+      error: "Error al obtener información de la invitación",
+      message: err.message
+    });
+  }
+});
+
+// === INICIAR RONDA DE PAGOS ===
+router.post("/:tandaId/start-round", async (req, res) => {
+  try {
+    const { tandaId } = req.params;
+    const tanda = tandas.get(tandaId);
+    
+    if (!tanda) {
+      return res.status(404).json({ error: "Tanda no encontrada" });
+    }
+
+    if (tanda.estado !== "completa" && tanda.estado !== "activa") {
+      return res.status(400).json({ error: "La tanda no está lista para iniciar ronda" });
+    }
+
+    // Determinar quién recibe en esta ronda
+    const siguienteReceptor = tanda.participantes.find(p => !p.yaRecibio);
+    if (!siguienteReceptor) {
+      return res.status(400).json({ error: "Todos los participantes ya han recibido" });
+    }
+
+    const rondaNumero = tanda.rondas.length + 1;
+    
+    const nuevaRonda = {
+      id: uuidv4(),
+      numero: rondaNumero,
+      receptorId: siguienteReceptor.id,
+      receptorNombre: siguienteReceptor.nombre,
+      receptorWalletUrl: siguienteReceptor.walletUrl,
+      fechaInicio: new Date().toISOString(),
+      estado: "activa", // "activa", "completada"
+      pagos: [],
+      montoTotal: tanda.montoPorPersona * tanda.numeroParticipantes,
+      montoRecibido: 0
+    };
+
+    tanda.rondas.push(nuevaRonda);
+    tanda.estado = "activa";
+    tanda.proximaRonda = nuevaRonda.id;
+
+    res.json({
+      ok: true,
+      mensaje: `Ronda ${rondaNumero} iniciada`,
+      ronda: nuevaRonda,
+      receptor: {
+        nombre: siguienteReceptor.nombre,
+        posicion: siguienteReceptor.posicion
+      }
+    });
+
+  } catch (err) {
+    console.error("ERROR INICIAR RONDA:", err);
+    res.status(500).json({
+      error: "Error al iniciar la ronda",
+      message: err.message
+    });
+  }
+});
+
+        numero: rondaActiva.numero,
+        pagosRecibidos: pagosCompletados.length,
+        totalParticipantes: tanda.numeroParticipantes,
+        montoRecibido: rondaActiva.montoRecibido,
+        completada: rondaActiva.estado === "completada"
+      },
+      requiresAuth,
+      authUrl
+    };
+
+    res.json(response);
+
+    } catch (transferError) {
+      console.error("Error en transferencia Interledger:", transferError);
+      
+      // Crear registro de pago fallido
+      const pagoFallido = {
+        id: uuidv4(),
+        participanteId: participante.id,
+        participanteNombre: participante.nombre,
+        monto: Number(monto),
+        fecha: new Date().toISOString(),
+        estado: "fallido",
+        error: transferError.message
+      };
+
+      rondaActiva.pagos.push(pagoFallido);
+      participante.pagosRealizados.push(pagoFallido.id);
+
+      return res.status(500).json({
+        ok: false,
+        error: "Error al procesar el pago con Interledger",
+        mensaje: transferError.message,
+        pago: pagoFallido
+      });
+    }
+
+  } catch (err) {
+    console.error("ERROR PROCESAR PAGO:", err);
+    res.status(500).json({
+      error: "Error al procesar el pago",
+      message: err.message
+    });
+  }
+});
+
+// === COMPLETAR PAGO DESPUÉS DE AUTORIZACIÓN ===
+router.post("/:tandaId/complete-payment", async (req, res) => {
+  try {
+    const { tandaId } = req.params;
+    const { pagoId, continueUri, continueAccessToken } = req.body;
+    
+    const tanda = tandas.get(tandaId);
+    if (!tanda) {
+      return res.status(404).json({ error: "Tanda no encontrada" });
+    }
+
+    const rondaActiva = tanda.rondas.find(r => r.estado === "activa");
+    if (!rondaActiva) {
+      return res.status(400).json({ error: "No hay ronda activa" });
+    }
+
+    const pago = rondaActiva.pagos.find(p => p.id === pagoId);
+    if (!pago) {
+      return res.status(404).json({ error: "Pago no encontrado" });
+    }
+
+    if (pago.estado !== "pendiente_autorizacion") {
+      return res.status(400).json({ error: "Este pago no requiere autorización" });
+    }
+
+    try {
+      // Completar la transferencia con continue
+      const continueResponse = await fetch(`http://localhost:${process.env.PORT || 3001}/api/payments/transfer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderWalletUrl: tanda.participantes.find(p => p.id === pago.participanteId).walletUrl,
+          receiverWalletUrl: rondaActiva.receptorWalletUrl,
+          value: pago.monto.toString(),
+          continue: true,
+          continueUri,
+          continueAccessToken
+        })
+      });
+
+      const continueData = await continueResponse.json();
+      
+      if (continueData.ok && continueData.outgoingPayment) {
+        // Pago completado exitosamente
+        pago.estado = "completado";
+        pago.transferenciaId = continueData.outgoingPayment.id;
+        pago.fechaComplecion = new Date().toISOString();
+        
+        // Sumar al monto recibido
+        rondaActiva.montoRecibido += pago.monto;
+
+        // Verificar si la ronda está completa
+        const pagosCompletados = rondaActiva.pagos.filter(p => p.estado === "completado");
+        if (pagosCompletados.length === tanda.numeroParticipantes) {
+          rondaActiva.estado = "completada";
+          rondaActiva.fechaComplecion = new Date().toISOString();
+          
+          // Marcar al receptor como que ya recibió
+          const receptor = tanda.participantes.find(p => p.id === rondaActiva.receptorId);
+          if (receptor) {
+            receptor.yaRecibio = true;
+          }
+
+          // Verificar si toda la tanda terminó
+          const todosRecibieron = tanda.participantes.every(p => p.yaRecibio);
+          if (todosRecibieron) {
+            tanda.estado = "finalizada";
+          }
+        }
+
+        res.json({
+          ok: true,
+          mensaje: "Pago completado exitosamente",
+          pago,
+          ronda: {
+            numero: rondaActiva.numero,
+            pagosRecibidos: pagosCompletados.length,
+            totalParticipantes: tanda.numeroParticipantes,
+            montoRecibido: rondaActiva.montoRecibido,
+            completada: rondaActiva.estado === "completada"
+          }
+        });
+      } else {
+        throw new Error(continueData.error || 'Error al completar la transferencia');
+      }
+
+    } catch (continueError) {
+      console.error("Error al completar transferencia:", continueError);
+      
+      // Marcar el pago como fallido
+      pago.estado = "fallido";
+      pago.error = continueError.message;
+      
+      res.status(500).json({
+        ok: false,
+        error: "Error al completar el pago",
+        mensaje: continueError.message,
+        pago
+      });
+    }
+
+  } catch (err) {
+    console.error("ERROR COMPLETAR PAGO:", err);
+    res.status(500).json({
+      error: "Error al completar el pago",
+      message: err.message
+    });
+  }
+});
+
+// === PÁGINA DE INVITACIÓN (removida, ahora se maneja en server.js) ===
+
+// === OBTENER INFORMACIÓN DE INVITACIÓN ===
+router.get("/invite/:inviteCode", (req, res) => {
+  try {
+    const { inviteCode } = req.params;
+    const tanda = Array.from(tandas.values()).find(t => t.inviteCode === inviteCode);
+    
+    if (!tanda) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Invitación No Válida - EduWallet Tandas</title>
+          <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f8f9fa; }
+            .error { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          </style>
+        </head>
+        <body>
+          <div class="error">
+            <h1>❌ Invitación No Válida</h1>
+            <p>Este código de invitación no es válido o la tanda ya no está disponible.</p>
+            <a href="/">Ir al Inicio</a>
+          </div>
+        </body>
+        </html>
+      `);
+    }
+
+    // Página de invitación con información de la tanda
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Únete a ${tanda.nombre} - EduWallet Tandas</title>
+        <style>
+          body { 
+            font-family: Arial, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .invite-card { 
+            background: white; 
+            padding: 40px; 
+            border-radius: 15px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-width: 500px;
+            width: 100%;
+          }
+          .invite-header {
+            text-align: center;
+            margin-bottom: 30px;
+          }
+          .invite-header h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+          }
+          .tanda-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+          }
+          .stat {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+          }
+          .stat strong {
+            color: #333;
+          }
+          .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin: 10px 0;
+          }
+          .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+          }
+          .status {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            display: inline-block;
+          }
+          .status-abierta { background: #fff3cd; color: #856404; }
+          .status-completa { background: #f8d7da; color: #721c24; }
+        </style>
+      </head>
+      <body>
+        <div class="invite-card">
+          <div class="invite-header">
+            <h1>🏦 ${tanda.nombre}</h1>
+            <p>¡Te han invitado a participar en esta tanda!</p>
+            <span class="status status-${tanda.estado}">${tanda.estado.toUpperCase()}</span>
+          </div>
+          
+          <div class="tanda-info">
+            <div class="stat">
+              <span>Monto por persona:</span>
+              <strong>${(tanda.montoPorPersona / 100).toFixed(2)}</strong>
+            </div>
+            <div class="stat">
+              <span>Participantes:</span>
+              <strong>${tanda.participantes.length}/${tanda.numeroParticipantes}</strong>
+            </div>
+            <div class="stat">
+              <span>Frecuencia:</span>
+              <strong>${tanda.frecuencia}</strong>
+            </div>
+            <div class="stat">
+              <span>Creado por:</span>
+              <strong>${tanda.creadorNombre}</strong>
+            </div>
+          </div>
+
+          ${tanda.descripcion ? `
+            <div style="background: #e8f4fd; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <strong>Descripción:</strong><br>
+              ${tanda.descripcion}
+            </div>
+          ` : ''}
+
+          ${tanda.estado === 'abierta' && tanda.participantes.length < tanda.numeroParticipantes ? `
+            <button class="btn" onclick="window.location.href='/?join=${inviteCode}'">
+              👥 Unirme a la Tanda
+            </button>
+          ` : `
+            <div style="text-align: center; padding: 20px; color: #666;">
+              ${tanda.estado === 'completa' ? 
+                '✅ Esta tanda ya está completa' : 
+                '❌ Esta tanda ya no acepta participantes'
+              }
+            </div>
+          `}
+          
+          <button class="btn" onclick="window.location.href='/'" style="background: #6c757d;">
+            🏠 Ir al Inicio
+          </button>
+        </div>
+      </body>
+      </html>
+    `);
+
+  } catch (err) {
+    console.error("ERROR PÁGINA INVITACIÓN:", err);
+    res.status(500).send("Error al cargar la invitación");
+  }
+});
+    });
+
+  } catch (err) {
+    console.error("ERROR PROCESAR PAGO:", err);
+    res.status(500).json({
+      error: "Error al procesar el pago",
+      message: err.message
+    });
+  }
+});
+
+// === LISTAR TANDAS DE UN PARTICIPANTE ===
+router.get("/participant/:walletLink", (req, res) => {
+  try {
+    const { walletLink } = req.params;
+    const walletUrl = parseWalletLink(walletLink);
+    
+    const tandasDelParticipante = Array.from(tandas.values()).filter(tanda =>
+      tanda.participantes.some(p => p.walletUrl === walletUrl)
+    );
+
+    const resumen = tandasDelParticipante.map(tanda => {
+      const participante = tanda.participantes.find(p => p.walletUrl === walletUrl);
+      return {
+        id: tanda.id,
+        nombre: tanda.nombre,
+        estado: tanda.estado,
+        miPosicion: participante.posicion,
+        yaRecibi: participante.yaRecibio,
+        montoPorPersona: tanda.montoPorPersona,
+        rondaActual: tanda.rondas.length,
+        totalRondas: tanda.numeroParticipantes,
+        proximoReceptor: getProximoReceptor(tanda)
+      };
+    });
+
+    res.json({
+      ok: true,
+      tandas: resumen
+    });
+  } catch (err) {
+    console.error("ERROR LISTAR TANDAS:", err);
+    res.status(500).json({
+      error: "Error al listar las tandas",
+      message: err.message
+    });
+  }
+});
+
+// Función auxiliar para programar primera ronda
+function scheduleFirstRound(tanda) {
+  // En una implementación real, aquí programarías un job/cron
+  console.log(`Tanda ${tanda.nombre} completada. Lista para iniciar rondas.`);
+}
+
+// Función auxiliar para obtener próximo receptor
+function getProximoReceptor(tanda) {
+  const siguiente = tanda.participantes.find(p => !p.yaRecibio);
+  return siguiente ? {
+    nombre: siguiente.nombre,
+    posicion: siguiente.posicion
+  } : null;
+}
+
+export default router;

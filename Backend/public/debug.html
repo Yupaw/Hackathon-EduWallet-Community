@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Debug Dashboard - Tandas Interledger</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height:100vh; padding:20px;
+    }
+    .container { max-width:1400px; margin:0 auto; }
+    .header { text-align:center; color:white; margin-bottom:30px; }
+    .header h1 { font-size:2.5rem; margin-bottom:10px; text-shadow:2px 2px 4px rgba(0,0,0,.3); }
+    .debug-grid {
+      display:grid; grid-template-columns:repeat(auto-fit,minmax(400px,1fr));
+      gap:20px; margin-bottom:30px;
+    }
+    .debug-card {
+      background:rgba(255,255,255,.95); border-radius:15px; padding:25px;
+      box-shadow:0 10px 30px rgba(0,0,0,.2); backdrop-filter:blur(10px);
+      border:1px solid rgba(255,255,255,.3);
+    }
+    .debug-card h3 { color:#333; margin-bottom:20px; font-size:1.3rem; border-bottom:2px solid #667eea; padding-bottom:10px; }
+    .test-button {
+      background:linear-gradient(45deg,#667eea,#764ba2); color:white; border:none;
+      padding:12px 25px; border-radius:8px; cursor:pointer; font-size:1rem; font-weight:bold;
+      margin:10px 10px 10px 0; transition:all .3s ease; box-shadow:0 4px 15px rgba(0,0,0,.2);
+    }
+    .test-button:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(0,0,0,.3); }
+    .test-button:disabled { background:#ccc; cursor:not-allowed; transform:none; }
+    .result-area {
+      background:#f8f9fa; border-radius:8px; padding:15px; margin-top:15px;
+      border-left:4px solid #667eea; font-family:monospace; font-size:.9rem;
+      max-height:300px; overflow-y:auto;
+    }
+    .status-indicator { display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:8px; }
+    .status-success{background:#28a745;} .status-error{background:#dc3545;}
+    .status-warning{background:#ffc107;} .status-info{background:#17a2b8;}
+    .input-group{ margin-bottom:15px; }
+    .input-group label{ display:block; margin-bottom:5px; font-weight:bold; color:#333; }
+    .input-group input,.input-group select{
+      width:100%; padding:10px; border:2px solid #ddd; border-radius:5px; font-size:1rem;
+    }
+    .input-group input:focus,.input-group select:focus{ outline:none; border-color:#667eea; }
+    .log-entry{ margin-bottom:10px; padding:8px; border-radius:5px; border-left:3px solid #667eea; }
+    .log-entry.error{ background:#f8d7da; border-left-color:#dc3545; color:#721c24; }
+    .log-entry.success{ background:#d4edda; border-left-color:#28a745; color:#155724; }
+    .log-entry.warning{ background:#fff3cd; border-left-color:#ffc107; color:#856404; }
+    .config-item{ display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #eee; }
+    .config-item:last-child{ border-bottom:none; }
+    .config-value{ font-family:monospace; background:#f1f3f4; padding:4px 8px; border-radius:4px; font-size:.9rem; }
+    .step-indicator{ display:flex; align-items:center; margin:10px 0; }
+    .step-number{
+      width:30px; height:30px; border-radius:50%; background:#667eea; color:white;
+      display:flex; align-items:center; justify-content:center; font-weight:bold; margin-right:15px;
+    }
+    .step-number.completed{ background:#28a745; } .step-number.error{ background:#dc3545; }
+    .quick-actions{ display:flex; flex-wrap:wrap; gap:10px; margin-top:20px; }
+    .action-button{ background:#17a2b8; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:.9rem; transition:background .3s; }
+    .action-button:hover{ background:#138496; }
+    .wallet-card{ border:1px solid #ddd; border-radius:8px; padding:15px; margin:10px 0; background:#f8f9fa; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Debug Dashboard</h1>
+      <p>Herramientas de diagnóstico para Tandas Comunitarias con Interledger</p>
+    </div>
+
+    <div class="debug-grid">
+      <!-- Configuración del Sistema -->
+      <div class="debug-card">
+        <h3>Configuración del Sistema</h3>
+        <button class="test-button" onclick="verificarConfiguracion()">Verificar Configuración</button>
+        <div id="config-result" class="result-area" style="display:none;"></div>
+      </div>
+
+      <!-- Test de Conectividad -->
+      <div class="debug-card">
+        <h3>Test de Conectividad</h3>
+        <div class="input-group">
+          <label>URL de Wallet a probar:</label>
+          <input type="text" id="test-wallet-url" placeholder="https://ilp.interledger-test.dev/test2carlos">
+        </div>
+        <button class="test-button" onclick="probarWallet()">Probar Conectividad</button>
+        <div id="connectivity-result" class="result-area" style="display:none;"></div>
+      </div>
+
+      <!-- Test de Pagos -->
+      <div class="debug-card">
+        <h3>Test de Pagos</h3>
+        <div class="input-group">
+          <label>Monto de prueba:</label>
+          <input type="number" id="test-amount" value="100" min="1">
+        </div>
+        <button class="test-button" onclick="probarPagoSimple()">Crear pago de prueba</button>
+        <div id="payment-result" class="result-area" style="display:none;"></div>
+      </div>
+
+      <!-- Estado del Servidor -->
+      <div class="debug-card">
+        <h3>Estado del Servidor</h3>
+        <div class="step-indicator"><div class="step-number" id="server-status">1</div><div>Servidor respondiendo</div></div>
+        <div class="step-indicator"><div class="step-number" id="interledger-status">2</div><div>Configuración Interledger</div></div>
+        <div class="step-indicator"><div class="step-number" id="wallet-status">3</div><div>Conectividad Wallet</div></div>
+        <button class="test-button" onclick="verificarEstadoCompleto()">Verificar Todo</button>
+        <div id="status-result" class="result-area" style="display:none;"></div>
+      </div>
+
+      <!-- Gestión de Tandas -->
+      <div class="debug-card">
+        <h3>Debug de Tandas</h3>
+        <div class="input-group">
+          <label>ID de Tanda:</label>
+          <input type="text" id="tanda-debug-id" placeholder="UUID de la tanda">
+        </div>
+        <button class="test-button" onclick="debugTanda()">Debug Tanda</button>
+        <div id="tanda-debug-result" class="result-area" style="display:none;"></div>
+      </div>
+
+      <!-- Logs del Sistema -->
+      <div class="debug-card">
+        <h3>Log de Eventos</h3>
+        <div class="quick-actions">
+          <button class="action-button" onclick="limpiarLogs()">Limpiar Logs</button>
+          <button class="action-button" onclick="exportarLogs()">Exportar Logs</button>
+        </div>
+        <div id="system-logs" class="result-area"></div>
+      </div>
+    </div>
+
+    <!-- Panel de Wallets Conocidas -->
+    <div class="debug-card" style="margin-bottom:20px;">
+      <h3>Wallets de Prueba</h3>
+      <div id="known-wallets">
+        <div class="wallet-card">
+          <strong>test2carlos</strong><br>https://ilp.interledger-test.dev/test2carlos
+          <button class="action-button" onclick="probarWalletEspecifica('https://ilp.interledger-test.dev/test2carlos')">Probar</button>
+        </div>
+        <div class="wallet-card">
+          <strong>PaolaUno</strong><br>https://ilp.interledger-test.dev/paolauno
+          <button class="action-button" onclick="probarWalletEspecifica('https://ilp.interledger-test.dev/paolauno')">Probar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let logs = [];
+
+    function log(message, type = 'info') {
+      const timestamp = new Date().toISOString();
+      logs.push({ timestamp, message, type });
+      const logsContainer = document.getElementById('system-logs');
+      const logDiv = document.createElement('div');
+      logDiv.className = `log-entry ${type}`;
+      logDiv.innerHTML = `<strong>[${timestamp.substring(11,19)}]</strong> ${message}`;
+      logsContainer.appendChild(logDiv);
+      logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
+
+    function updateStepStatus(stepId, status) {
+      const el = document.getElementById(stepId);
+      el.className = `step-number ${status}`;
+    }
+
+    // --- Normalizador de URLs de wallet ($ilp... -> https://ilp...) ---
+    function normalizeWalletUrl(input) {
+      if (!input) return input;
+      let s = input.trim();
+      s = s.replace(/^\$/,'');                 // quita '$' inicial si viene como $ilp...
+      if (!/^https?:\/\//i.test(s)) s = 'https://' + s; // añade https:// si falta
+      return s;
+    }
+
+    async function verificarConfiguracion() {
+      const resultDiv = document.getElementById('config-result');
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = 'Verificando configuración...';
+
+      try {
+        log('Iniciando verificación de configuración');
+
+        const r = await fetch('/debug/signer');
+        const data = await r.json();
+
+        if (r.ok) {
+          log('Configuración verificada exitosamente', 'success');
+
+          let html = '<div class="log-entry success">Configuración válida</div>';
+          html += '<h4>Configuración:</h4>';
+          Object.entries(data.config).forEach(([k,v])=>{
+            html += `<div class="config-item"><span>${k}:</span><span class="config-value">${v}</span></div>`;
+          });
+
+          html += '<h4>Verificaciones:</h4>';
+          html += data.checks?.privateKeyFile?.exists
+            ? '<div class="log-entry success">Archivo de clave privada encontrado</div>'
+            : '<div class="log-entry error">Archivo de clave privada NO encontrado</div>';
+
+          if (data.checks?.interledger?.clientCreated) {
+            html += '<div class="log-entry success">Cliente Interledger creado exitosamente</div>';
+            html += `<div class="config-item"><span>Wallet ID:</span><span class="config-value">${data.checks.interledger.walletId}</span></div>`;
+            updateStepStatus('interledger-status','completed');
+          } else {
+            html += '<div class="log-entry error">Error creando cliente Interledger</div>';
+            if (data.checks?.interledger?.error) {
+              html += `<div class="log-entry error">${data.checks.interledger.error}</div>`;
+            }
+            updateStepStatus('interledger-status','error');
+          }
+          resultDiv.innerHTML = html;
+        } else {
+          log(`Error en configuración: ${data.error}`,'error');
+          resultDiv.innerHTML = `<div class="log-entry error">${data.error}</div>`;
+          updateStepStatus('interledger-status','error');
+        }
+      } catch (e) {
+        log(`Error verificando configuración: ${e.message}`,'error');
+        resultDiv.innerHTML = `<div class="log-entry error">Error: ${e.message}</div>`;
+        updateStepStatus('interledger-status','error');
+      }
+    }
+
+    async function probarWallet() {
+      const raw = document.getElementById('test-wallet-url').value || 'https://ilp.interledger-test.dev/test2carlos';
+      const walletUrl = normalizeWalletUrl(raw);
+      const resultDiv = document.getElementById('connectivity-result');
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = `Probando conectividad con ${walletUrl}...`;
+
+      try {
+        log(`Probando wallet: ${walletUrl}`);
+
+        const r = await fetch('/debug/test-wallet', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ walletUrl })
+        });
+        const data = await r.json();
+
+        if (data.ok) {
+          log(`Wallet ${walletUrl} responde correctamente`,'success');
+          let html = '<div class="log-entry success">Wallet accesible</div><h4>Información de la Wallet:</h4>';
+          Object.entries(data.wallet).forEach(([k,v])=>{
+            html += `<div class="config-item"><span>${k}:</span><span class="config-value">${v}</span></div>`;
+          });
+          resultDiv.innerHTML = html;
+          updateStepStatus('wallet-status','completed');
+        } else {
+          log(`Error probando wallet: ${data.error}`,'error');
+          let html = `<div class="log-entry error">${data.error || 'Error al conectar con la wallet'}</div>`;
+          if (data.details) html += `<div class="log-entry error">Detalles: ${data.details}</div>`;
+          resultDiv.innerHTML = html;
+          updateStepStatus('wallet-status','error');
+        }
+      } catch (e) {
+        log(`Error en test de wallet: ${e.message}`,'error');
+        resultDiv.innerHTML = `<div class="log-entry error">Error: ${e.message}</div>`;
+        updateStepStatus('wallet-status','error');
+      }
+    }
+
+    async function probarPagoSimple() {
+      const amount = String(document.getElementById('test-amount').value || '100');
+      const resultDiv = document.getElementById('payment-result');
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = `Creando pago de prueba por ${amount}...`;
+
+      try {
+        log(`Probando pago simple por ${amount}`);
+
+        // Este endpoint debe crear incoming->quote->grant (posible redirect)
+        const r = await fetch('/debug/test-simple-payment', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ amount })
+        });
+        const data = await r.json();
+
+        // Tratar "requiresInteraction" como caso EXITO con acción pendiente,
+        // independientemente de si el backend devuelve ok true/false.
+        if (data.requiresInteraction) {
+          log(`Se requiere autorización (redirect) para continuar el pago`,'success');
+          let html = '<div class="log-entry success">Solicitud creada. Falta autorizar.</div>';
+          if (data.redirectUrl || data.authUrl) {
+            const url = data.redirectUrl || data.authUrl;
+            html += `<div class="log-entry success">👉 Abre para autorizar: <a href="${url}" target="_blank" rel="noopener">${url}</a></div>`;
+          }
+          const cont = data.continue || {};
+          if (cont.uri || data.continueUri) {
+            html += `<div class="config-item"><span>Continue URI:</span><span class="config-value">${cont.uri || data.continueUri}</span></div>`;
+          }
+          if (cont.accessToken || data.continueAccessToken) {
+            html += `<div class="config-item"><span>Continue Access Token:</span><span class="config-value">${cont.accessToken || data.continueAccessToken}</span></div>`;
+          }
+          resultDiv.innerHTML = html;
+          return;
+        }
+
+        if (r.ok && data.ok) {
+          log(`Pago de prueba creado/ejecutado`,'success');
+          let html = '<div class="log-entry success">Operación exitosa</div>';
+          if (data.incomingPayment) {
+            html += '<h4>Incoming Payment</h4><pre>'+JSON.stringify(data.incomingPayment,null,2)+'</pre>';
+          }
+          if (data.quote) {
+            html += '<h4>Quote</h4><pre>'+JSON.stringify(data.quote,null,2)+'</pre>';
+          }
+          if (data.outgoingPayment) {
+            html += '<h4>Outgoing Payment</h4><pre>'+JSON.stringify(data.outgoingPayment,null,2)+'</pre>';
+          }
+          resultDiv.innerHTML = html;
+        } else {
+          // Si llega como error, muéstralo
+          log(`Error en pago simple: ${data.error || 'Error en prueba de pago simple'}`,'error');
+          let html = `<div class="log-entry error">${data.error || 'Error en prueba de pago simple'}</div>`;
+          if (data.details) html += `<div class="log-entry error">Detalles: ${data.details}</div>`;
+          resultDiv.innerHTML = html;
+        }
+      } catch (e) {
+        log(`Error en test de pago: ${e.message}`,'error');
+        resultDiv.innerHTML = `<div class="log-entry error">Error: ${e.message}</div>`;
+      }
+    }
+
+    async function verificarEstadoCompleto() {
+      const resultDiv = document.getElementById('status-result');
+      resultDiv.style.display = 'block';
+      log('Iniciando verificación completa del sistema');
+
+      updateStepStatus('server-status','');
+      updateStepStatus('interledger-status','');
+      updateStepStatus('wallet-status','');
+
+      let html = '<h4>Progreso de Verificación:</h4>';
+      resultDiv.innerHTML = html;
+
+      try {
+        html += '<div class="log-entry">1. Verificando servidor...</div>';
+        resultDiv.innerHTML = html;
+        const h = await fetch('/api/health');
+        if (h.ok) { updateStepStatus('server-status','completed'); html += '<div class="log-entry success">✓ Servidor respondiendo</div>'; log('Servidor respondiendo correctamente','success'); }
+        else { updateStepStatus('server-status','error'); html += '<div class="log-entry error">✗ Error en servidor</div>'; log('Error en servidor','error'); return; }
+
+        html += '<div class="log-entry">2. Verificando configuración Interledger...</div>';
+        resultDiv.innerHTML = html;
+        const c = await fetch('/debug/signer');
+        const cd = await c.json();
+        if (cd.checks?.interledger?.clientCreated) { updateStepStatus('interledger-status','completed'); html += '<div class="log-entry success">✓ Interledger configurado correctamente</div>'; log('Interledger configurado correctamente','success'); }
+        else { updateStepStatus('interledger-status','error'); html += '<div class="log-entry error">✗ Error en configuración Interledger</div>'; log('Error en configuración Interledger','error'); }
+
+        html += '<div class="log-entry">3. Verificando conectividad wallet...</div>';
+        resultDiv.innerHTML = html;
+        const w = await fetch('/debug/test-wallet', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({}) });
+        const wd = await w.json();
+        if (wd.ok) { updateStepStatus('wallet-status','completed'); html += '<div class="log-entry success">✓ Wallet accesible</div>'; log('Wallet accesible','success'); }
+        else { updateStepStatus('wallet-status','error'); html += '<div class="log-entry error">✗ Error accediendo wallet</div>'; log('Error accediendo wallet','error'); }
+
+        html += '<div class="log-entry success">Verificación completa finalizada</div>';
+        resultDiv.innerHTML = html;
+        log('Verificación completa finalizada');
+      } catch (e) {
+        html += `<div class="log-entry error">Error durante verificación: ${e.message}</div>`;
+        resultDiv.innerHTML = html;
+        log(`Error durante verificación: ${e.message}`,'error');
+      }
+    }
+
+    async function debugTanda() {
+      const tandaId = document.getElementById('tanda-debug-id').value.trim();
+      if (!tandaId) { alert('Por favor ingresa un ID de tanda'); return; }
+
+      const resultDiv = document.getElementById('tanda-debug-result');
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = `Obteniendo información de debug para tanda ${tandaId}...`;
+
+      try {
+        log(`Debug de tanda: ${tandaId}`);
+        const r = await fetch(`/api/tandas/${tandaId}/debug`);
+        const data = await r.json();
+
+        if (data.ok) {
+          log('Debug de tanda obtenido exitosamente','success');
+          let html = '<div class="log-entry success">Debug de tanda obtenido</div>';
+          html += '<h4>Información de la Tanda:</h4>';
+          html += `<pre>${JSON.stringify(data.debug, null, 2)}</pre>`;
+          resultDiv.innerHTML = html;
+        } else {
+          log(`Error obteniendo debug: ${data.error}`,'error');
+          resultDiv.innerHTML = `<div class="log-entry error">${data.error}</div>`;
+        }
+      } catch (e) {
+        log(`Error en debug de tanda: ${e.message}`,'error');
+        resultDiv.innerHTML = `<div class="log-entry error">Error: ${e.message}</div>`;
+      }
+    }
+
+    async function probarWalletEspecifica(walletUrl) {
+      document.getElementById('test-wallet-url').value = walletUrl;
+      await probarWallet();
+    }
+
+    function limpiarLogs() {
+      logs = [];
+      document.getElementById('system-logs').innerHTML = '';
+      log('Logs limpiados');
+    }
+
+    function exportarLogs() {
+      const logsText = logs.map(l => `[${l.timestamp}] [${l.type.toUpperCase()}] ${l.message}`).join('\n');
+      const blob = new Blob([logsText], { type:'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `tandas-debug-logs-${new Date().toISOString().substring(0,10)}.txt`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      log('Logs exportados');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      log('Dashboard de debug iniciado');
+      fetch('/api/health')
+        .then(r => r.ok ? updateStepStatus('server-status','completed') : updateStepStatus('server-status','error'))
+        .catch(() => updateStepStatus('server-status','error'));
+    });
+  </script>
+</body>
+</html>

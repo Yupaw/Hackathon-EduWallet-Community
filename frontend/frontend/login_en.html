@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EduWallet · Sign in</title>
+  <link rel="stylesheet" href="css/login.css" />
+</head>
+<body>
+
+  <div class="topnav"> 
+    <div class="logo">
+        <img src="../frontend/img/walletttt.png" alt="EduWallet Logo" /> 
+      </a>
+    </div>
+    <nav>
+      <ul>
+        <li><a href="home_en.html">Home</a></li>
+        <li><a href="registro_en.html">Sign up</a></li>
+      </ul>
+    </nav>
+  </div> 
+
+  <main class="auth">
+    <section class="card">
+      <div class="left">
+        <h1 class="brand">EduWallet Community</h1>
+        <p class="subtitle">Welcome back. Please sign in to continue.</p>
+
+        <form id="loginForm" novalidate>
+          <label class="field">
+            <input type="text" name="email" required placeholder="Email / Telephone #" />
+          </label>
+
+          <label class="field">
+            <input type="password" name="password" required minlength="6" placeholder="Password" id="password" />
+            <button type="button" class="showpass" aria-label="Show password" id="togglePass">Show</button>
+          </label>
+
+          <button class="btn btn--primary" type="submit">Sign in</button>
+        </form>
+
+        <p class="legal">
+          You don't have an account? <a href="../frontend/registro.html">Sign up</a>.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Toggle show/hide password
+    const toggleBtn = document.querySelector('#togglePass');
+    const passInput = document.querySelector('#password');
+    toggleBtn?.addEventListener('click', () => {
+      const isPwd = passInput.type === 'password';
+      passInput.type = isPwd ? 'text' : 'password';
+      toggleBtn.textContent = isPwd ? 'Hide' : 'Show';
+    });
+
+    // Basic submit handler (no backend)
+    const form = document.querySelector('#loginForm');
+    form?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email = e.target.email.value.trim();
+      const password = e.target.password.value;
+
+      if (!email || !password) {
+        alert('Please enter both email/telephone and password.');
+        return;
+      }
+
+      //alert('Sign in simulated. (Here goes your backend logic)');
+      window.location.href = 'http://127.0.0.1:5500/BACKEND/public/index.html';
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+<h2 id="hello"></h2>
+<button id="logout">Cerrar sesión</button>
+
+<script type="module" src="./js/supabaseClient.js"></script>
+<script type="module">
+  const { data: { session } } = await window.supabase.auth.getSession();
+  if (!session) window.location.href = './login.html';
+
+  const { data: { user } } = await window.supabase.auth.getUser();
+  document.querySelector('#hello').textContent = `Hola, ${user?.email || 'usuario'}`;
+
+  document.querySelector('#logout').addEventListener('click', async () => {
+    await window.supabase.auth.signOut();
+    window.location.href = './login.html';
+  });
+</script>

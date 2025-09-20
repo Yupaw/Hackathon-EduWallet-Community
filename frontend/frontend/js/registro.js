@@ -1,11 +1,3 @@
-// Toggle mostrar/ocultar contraseña
-const pass = document.getElementById('password');
-const toggle = document.getElementById('togglePass');
-toggle.addEventListener('click', () => {
-  const show = pass.type === 'password';
-  pass.type = show ? 'text' : 'password';
-  toggle.textContent = show ? 'Ocultar' : 'Mostrar';
-});
 
 // Validación de intereses: exactamente 3
 const boxes = Array.from(document.querySelectorAll('input[name="interests"]'));
@@ -74,3 +66,6 @@ form.addEventListener('submit', (e) => {
   birth.max = toISO(max);
   birth.min = toISO(min);
 })();
+
+
+

@@ -1,396 +1,341 @@
-// server.js — EduWallet Community (API base + transfer + lectura segura + home estático)
+// server.js - Servidor mejorado para tandas con Interledger
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import net from 'net';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+import dotenv from 'dotenv';
+import tandasRouter from './routes/tandas.js';
 
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import fs from "fs";
-import {
-  createAuthenticatedClient,
-  isFinalizedGrant,
-} from "@interledger/open-payments";
-import tandasRouter from "./routes/tandas.js"; // <— tu router de tandas
-
+// Configurar ES modules y dotenv
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 dotenv.config();
 
 const app = express();
+
+// Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
-// === HOME estático (sirve ./public como raíz) ===
-app.use(express.static("public")); // ahora GET / carga public/index.html
-
-// Variables desde .env
-const {
-  OP_WALLET_URL,        // Wallet con la que firma el server (debe coincidir con EMISOR)
-  OP_KEY_ID,            // Key ID asociado a la clave privada
-  OP_PRIVATE_KEY_PATH,  // Ruta al archivo PEM con la clave privada
-  RECEIVER_WALLET_URL,  // Wallet destino por defecto para pruebas
-  PORT = 3001,
-} = process.env;
-
-// Cliente autenticado
-function getClient() {
-  const privateKeyPem = fs.readFileSync(OP_PRIVATE_KEY_PATH, "utf8").trim();
-  return createAuthenticatedClient({
-    walletAddressUrl: OP_WALLET_URL,
-    privateKey: privateKeyPem,
-    keyId: OP_KEY_ID,
+// --- Utilidades de puerto ---
+function isPortAvailable(port) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.listen(port, () => {
+      server.once('close', () => resolve(true));
+      server.close();
+    });
+    server.on('error', () => resolve(false));
   });
 }
 
-// --- Salud y diagnóstico ---
-app.get("/health", (_req, res) => {
-  res.json({ ok: true, service: "EduWallet Community API" });
+async function findAvailablePort(startPort = 3001, maxTries = 10) {
+  for (let i = 0; i < maxTries; i++) {
+    const port = startPort + i;
+    if (await isPortAvailable(port)) return port;
+  }
+  throw new Error(`No se pudo encontrar un puerto disponible entre ${startPort} y ${startPort + maxTries - 1}`);
+}
+
+// Configuración Interledger
+const INTERLEDGER_CONFIG = {
+  walletUrl: process.env.WALLET_ADDRESS_URL || 'https://ilp.interledger-test.dev/test2carlos',
+  keyId: process.env.KEY_ID || '7b52aab1-ace8-4a7d-a27f-bf773e7b7bf6',
+  privateKeyPath: process.env.PRIVATE_KEY_PATH || './private.key'
+};
+
+// --- Endpoints de salud y debug ---
+app.get('/api/health', (req, res) => {
+  res.json({
+    ok: true,
+    service: 'EduWallet Tandas Community',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0'
+  });
 });
 
-app.get("/debug/signer", async (_req, res) => {
+app.get('/debug/signer', async (req, res) => {
   try {
-    const client = await getClient();
-    const wa = await client.walletAddress.get({ url: OP_WALLET_URL });
+    console.log('🔍 Verificando configuración Interledger...');
+
+    const debug = {
+      timestamp: new Date().toISOString(),
+      config: {
+        walletUrl: INTERLEDGER_CONFIG.walletUrl,
+        keyId: INTERLEDGER_CONFIG.keyId,
+        privateKeyPath: INTERLEDGER_CONFIG.privateKeyPath
+      },
+      checks: {}
+    };
+
+    // Verificar archivo de clave privada
+    try {
+      const privateKeyExists = fs.existsSync(INTERLEDGER_CONFIG.privateKeyPath);
+      debug.checks.privateKeyFile = {
+        exists: privateKeyExists,
+        path: INTERLEDGER_CONFIG.privateKeyPath
+      };
+      if (privateKeyExists) {
+        const keyContent = fs.readFileSync(INTERLEDGER_CONFIG.privateKeyPath, 'utf8');
+        debug.checks.privateKeyFile.isPEM = keyContent.includes('BEGIN PRIVATE KEY');
+        debug.checks.privateKeyFile.length = keyContent.length;
+        debug.checks.privateKeyFile.sample = keyContent.substring(0, 50) + '...';
+      }
+    } catch (error) {
+      debug.checks.privateKeyFile = { error: error.message };
+    }
+
+    // Verificar variables de entorno
+    debug.checks.environment = {
+      NODE_ENV: process.env.NODE_ENV,
+      WALLET_ADDRESS_URL: !!process.env.WALLET_ADDRESS_URL,
+      KEY_ID: !!process.env.KEY_ID,
+      PRIVATE_KEY_PATH: !!process.env.PRIVATE_KEY_PATH,
+      PORT: process.env.PORT
+    };
+
+    // Intentar crear cliente Interledger
+    try {
+      const { createAuthenticatedClient } = await import('@interledger/open-payments');
+      const privateKey = fs.readFileSync(INTERLEDGER_CONFIG.privateKeyPath, 'utf8');
+
+      const client = await createAuthenticatedClient({
+        walletAddressUrl: INTERLEDGER_CONFIG.walletUrl,
+        privateKey,
+        keyId: INTERLEDGER_CONFIG.keyId
+      });
+
+      const walletAddress = await client.walletAddress.get({ url: INTERLEDGER_CONFIG.walletUrl });
+
+      debug.checks.interledger = {
+        clientCreated: true,
+        walletResolved: true,
+        walletId: walletAddress.id,
+        authServer: walletAddress.authServer,
+        resourceServer: walletAddress.resourceServer,
+        assetCode: walletAddress.assetCode,
+        assetScale: walletAddress.assetScale
+      };
+    } catch (ilError) {
+      debug.checks.interledger = {
+        error: ilError.message,
+        details: ilError.response?.data || ilError.cause?.message || 'Error desconocido'
+      };
+    }
+
+    console.log('✅ Debug de configuración completado');
+    res.json(debug);
+  } catch (error) {
+    console.error('❌ Error en debug signer:', error);
+    res.status(500).json({
+      error: 'Error al verificar configuración',
+      details: error.message
+    });
+  }
+});
+
+// Test de conectividad con wallets
+app.post('/debug/test-wallet', async (req, res) => {
+  try {
+    const { walletUrl } = req.body;
+    const testUrl = walletUrl || INTERLEDGER_CONFIG.walletUrl;
+
+    console.log(`🔍 Probando conexión con wallet: ${testUrl}`);
+
+    const { createAuthenticatedClient } = await import('@interledger/open-payments');
+    const privateKey = fs.readFileSync(INTERLEDGER_CONFIG.privateKeyPath, 'utf8');
+
+    const client = await createAuthenticatedClient({
+      walletAddressUrl: INTERLEDGER_CONFIG.walletUrl, // la wallet del servidor autentica
+      privateKey,
+      keyId: INTERLEDGER_CONFIG.keyId
+    });
+
+    const walletAddress = await client.walletAddress.get({ url: testUrl });
+
     res.json({
-      envWallet: OP_WALLET_URL,
-      envKeyId: OP_KEY_ID,
-      id: wa.id,
-      authServer: wa.authServer,
-      resourceServer: wa.resourceServer,
+      ok: true,
+      wallet: {
+        id: walletAddress.id,
+        authServer: walletAddress.authServer,
+        resourceServer: walletAddress.resourceServer,
+        assetCode: walletAddress.assetCode,
+        assetScale: walletAddress.assetScale
+      }
     });
-  } catch (e) {
+  } catch (error) {
+    console.error('❌ Error al probar wallet:', error);
     res.status(500).json({
-      error: "No se pudo resolver el wallet del .env",
-      message: e?.message || String(e),
+      ok: false,
+      error: 'Error al conectar con la wallet',
+      details: error.message,
+      responseData: error.response?.data || null
     });
   }
 });
 
-// --- 1) Crear un pago entrante (cobro) ---
-app.post("/api/payments/incoming", async (req, res) => {
+// Test simple: crear incoming payment en la wallet del servidor
+app.post('/debug/test-simple-payment', async (req, res) => {
   try {
-    const { value = "1000", receiverWalletUrl = RECEIVER_WALLET_URL } = req.body || {};
-    if (!receiverWalletUrl) {
-      return res.status(400).json({ error: "Falta receiverWalletUrl (en body o en .env)" });
-    }
+    const { amount = '100' } = req.body;
 
-    const client = await getClient();
+    console.log(`🧪 Prueba de pago simple por ${amount}...`);
 
-    // Info de la wallet receptora
-    const receivingWalletAddress = await client.walletAddress.get({ url: receiverWalletUrl });
+    const { createAuthenticatedClient, isFinalizedGrant } = await import('@interledger/open-payments');
+    const privateKey = fs.readFileSync(INTERLEDGER_CONFIG.privateKeyPath, 'utf8');
 
-    // Grant para crear incoming-payment
-    const inGrant = await client.grant.request(
-      { url: receivingWalletAddress.authServer },
-      { access_token: { access: [{ type: "incoming-payment", actions: ["create"] }] } }
-    );
-
-    if (!isFinalizedGrant(inGrant)) {
-      return res.status(400).json({ error: "Grant de incoming-payment no finalizado" });
-    }
-
-    // Crear incomingPayment
-    const incomingPayment = await client.incomingPayment.create(
-      {
-        url: receivingWalletAddress.resourceServer,
-        accessToken: inGrant.access_token.value,
-      },
-      {
-        walletAddress: receivingWalletAddress.id,
-        incomingAmount: {
-          assetCode: receivingWalletAddress.assetCode,
-          assetScale: receivingWalletAddress.assetScale,
-          value,
-        },
-      }
-    );
-
-    res.json({ incomingPayment });
-  } catch (err) {
-    console.error("INCOMING ERROR:", err);
-    res.status(500).json({
-      error: "Error al crear el pago entrante",
-      message: err?.message || String(err),
+    const client = await createAuthenticatedClient({
+      walletAddressUrl: INTERLEDGER_CONFIG.walletUrl,
+      privateKey,
+      keyId: INTERLEDGER_CONFIG.keyId
     });
-  }
-});
 
-// --- 2) Transferencia A→B con redirect/continue ---
-app.post("/api/payments/transfer", async (req, res) => {
-  try {
-    const {
-      senderWalletUrl,
-      receiverWalletUrl,
-      value = "1000",
-      continue: doContinue,
-      continueUri,
-      continueAccessToken,
-    } = req.body || {};
+    const wallet = await client.walletAddress.get({ url: INTERLEDGER_CONFIG.walletUrl });
 
-    if (!senderWalletUrl || !receiverWalletUrl) {
-      return res.status(400).json({ error: "senderWalletUrl y receiverWalletUrl son requeridos" });
-    }
-
-    const client = await getClient();
-
-    // Info de wallets
-    const sendingWalletAddress = await client.walletAddress.get({ url: senderWalletUrl });
-    const receivingWalletAddress = await client.walletAddress.get({ url: receiverWalletUrl });
-
-    // Grant + incomingPayment en receptor
-    const inGrant = await client.grant.request(
-      { url: receivingWalletAddress.authServer },
-      { access_token: { access: [{ type: "incoming-payment", actions: ["create"] }] } }
+    // 1) grant para incoming-payment
+    const incomingPaymentGrant = await client.grant.request(
+      { url: wallet.authServer },
+      { access_token: { access: [{ type: 'incoming-payment', actions: ['create'] }] } }
     );
-    if (!isFinalizedGrant(inGrant)) {
-      return res.status(400).json({
-        step: "incomingPaymentGrant",
-        error: "Grant incoming-payment no finalizado",
-        hint: "Revisa que el receptor sea correcto y accesible",
-      });
+
+    if (!isFinalizedGrant(incomingPaymentGrant)) {
+      throw new Error('Grant de incoming payment no finalizado');
     }
 
+    // 2) crear incoming payment
     const incomingPayment = await client.incomingPayment.create(
+      { url: wallet.resourceServer, accessToken: incomingPaymentGrant.access_token.value },
       {
-        url: receivingWalletAddress.resourceServer,
-        accessToken: inGrant.access_token.value,
-      },
-      {
-        walletAddress: receivingWalletAddress.id,
+        walletAddress: wallet.id,
         incomingAmount: {
-          assetCode: receivingWalletAddress.assetCode,
-          assetScale: receivingWalletAddress.assetScale,
-          value,
-        },
-      }
-    );
-
-    // Grant de quote (emisor)
-    const quoteGrant = await client.grant.request(
-      { url: sendingWalletAddress.authServer },
-      { access_token: { access: [{ type: "quote", actions: ["create"] }] } }
-    );
-    if (!isFinalizedGrant(quoteGrant)) {
-      return res.status(400).json({
-        step: "quoteGrant",
-        error: "Grant de quote no finalizado",
-        hint: "El emisor debe ser la misma wallet que firma el servidor (OP_* del .env)",
-      });
-    }
-
-    // Crear quote
-    const quote = await client.quote.create(
-      {
-        url: receivingWalletAddress.resourceServer,
-        accessToken: quoteGrant.access_token.value,
-      },
-      {
-        walletAddress: sendingWalletAddress.id,
-        receiver: incomingPayment.id,
-        method: "ilp",
-      }
-    );
-
-    // Grant de outgoing (puede pedir interacción)
-    let outGrant;
-    if (!doContinue) {
-      outGrant = await client.grant.request(
-        { url: sendingWalletAddress.authServer },
-        {
-          access_token: {
-            access: [
-              {
-                type: "outgoing-payment",
-                actions: ["create"],
-                limits: { debitAmount: quote.debitAmount },
-                identifier: sendingWalletAddress.id,
-              },
-            ],
-          },
-          interact: { start: ["redirect"] },
+          assetCode: wallet.assetCode,
+          assetScale: wallet.assetScale,
+          value: amount
         }
-      );
-
-      if (!isFinalizedGrant(outGrant)) {
-        return res.status(200).json({
-          ok: true,
-          requiresInteraction: !!outGrant?.interact?.redirect,
-          message:
-            "Autoriza en redirectUrl y luego vuelve a llamar con { continue: true, continueUri, continueAccessToken }",
-          redirectUrl: outGrant?.interact?.redirect || null,
-          continue: {
-            uri: outGrant?.continue?.uri || null,
-            accessToken: outGrant?.continue?.access_token?.value || null,
-          },
-          context: { incomingPayment, quote },
-        });
-      }
-    }
-
-    // Si vienes de autorizar, finaliza con continue
-    let finalizedOutGrant = outGrant;
-    if (doContinue) {
-      if (!continueUri || !continueAccessToken) {
-        return res.status(400).json({
-          step: "outgoingPaymentGrantContinue",
-          error: "Faltan continueUri y continueAccessToken",
-        });
-      }
-      finalizedOutGrant = await client.grant.continue({
-        url: continueUri,
-        accessToken: continueAccessToken,
-      });
-      if (!isFinalizedGrant(finalizedOutGrant)) {
-        return res.status(400).json({
-          step: "outgoingPaymentGrantContinue",
-          error: "Grant outgoing-payment no finalizado después de continue",
-        });
-      }
-    }
-
-    // Crear outgoing
-    const outgoingPayment = await client.outgoingPayment.create(
-      {
-        url: sendingWalletAddress.resourceServer,
-        accessToken: finalizedOutGrant.access_token.value,
-      },
-      {
-        walletAddress: sendingWalletAddress.id,
-        quoteId: quote.id,
       }
     );
 
-    return res.json({ ok: true, flow: "transfer", incomingPayment, quote, outgoingPayment });
-  } catch (err) {
-    console.error("TRANSFER ERROR:", err);
-    return res.status(500).json({
-      error: "Error en la transferencia A→B",
-      message: err?.message || String(err),
-      details: err?.response?.body || err?.response || null,
-    });
-  }
-});
-
-// --- 3) Lecturas “simples” por URL (si el AS lo permite) ---
-app.get("/api/payments/outgoing", async (req, res) => {
-  try {
-    const { id } = req.query;
-    if (!id) return res.status(400).json({ error: "Falta ?id=<outgoingPaymentUrl>" });
-    const client = await getClient();
-    const payment = await client.outgoingPayment.get({ url: id });
-    res.json({ payment });
-  } catch (err) {
-    console.error("OUTGOING GET ERROR:", err);
-    res.status(500).json({
-      error: "No se pudo obtener el outgoing payment",
-      message: err?.message || String(err),
-      details: err?.response?.body || err?.response || null,
-      hint: "Si tu AS exige interacción para leer, usa /api/payments/outgoing/get (flujo con redirect/continue)",
-    });
-  }
-});
-
-app.get("/api/payments/incoming", async (req, res) => {
-  try {
-    const { id } = req.query;
-    if (!id) return res.status(400).json({ error: "Falta ?id=<incomingPaymentUrl>" });
-    const client = await getClient();
-    const payment = await client.incomingPayment.get({ url: id });
-    res.json({ payment });
-  } catch (err) {
-    console.error("INCOMING GET ERROR:", err);
-    res.status(500).json({
-      error: "No se pudo obtener el incoming payment",
-      message: err?.message || String(err),
-    });
-  }
-});
-
-// --- 4) Lectura de outgoing con interacción (redirect/continue) ---
-app.post("/api/payments/outgoing/get", async (req, res) => {
-  try {
-    const { id, senderWalletUrl } = req.body || {};
-    if (!id) return res.status(400).json({ error: "Falta id con la URL del outgoingPayment" });
-
-    const client = await getClient();
-    const sendingWalletAddress = await client.walletAddress.get({
-      url: senderWalletUrl || OP_WALLET_URL,
-    });
-
-    const readGrant = await client.grant.request(
-      { url: sendingWalletAddress.authServer },
-      {
-        access_token: {
-          access: [
-            { type: "outgoing-payment", actions: ["read"], identifier: sendingWalletAddress.id },
-          ],
-        },
-        interact: { start: ["redirect"] },
+    res.json({
+      ok: true,
+      message: 'Incoming payment creado exitosamente',
+      incomingPayment: {
+        id: incomingPayment.id,
+        walletAddress: incomingPayment.walletAddress,
+        incomingAmount: incomingPayment.incomingAmount,
+        completed: incomingPayment.completed
       }
-    );
-
-    if (!isFinalizedGrant(readGrant)) {
-      return res.status(200).json({
-        ok: true,
-        requiresInteraction: !!readGrant?.interact?.redirect,
-        message: "Autoriza en redirectUrl y luego llama a /api/payments/outgoing/get/continue",
-        redirectUrl: readGrant?.interact?.redirect || null,
-        continue: {
-          uri: readGrant?.continue?.uri || null,
-          accessToken: readGrant?.continue?.access_token?.value || null,
-        },
-        context: { id },
-      });
-    }
-
-    const payment = await client.outgoingPayment.get({
-      url: id,
-      accessToken: readGrant.access_token.value,
     });
-    res.json({ ok: true, payment });
-  } catch (err) {
-    console.error("OUTGOING SECURE GET START ERROR:", err);
+  } catch (error) {
+    console.error('❌ Error en prueba de pago:', error);
     res.status(500).json({
-      error: "No se pudo iniciar la lectura del outgoing (con grant)",
-      message: err?.message || String(err),
-      details: err?.response?.body || err?.response || null,
+      ok: false,
+      error: 'Error en prueba de pago simple',
+      details: error.message,
+      responseData: error.response?.data || null
     });
   }
 });
 
-app.post("/api/payments/outgoing/get/continue", async (req, res) => {
+// --- Rutas del sistema de tandas ---
+app.use('/api/tandas', tandasRouter);
+
+// --- Rutas frontend ---
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+app.get('/join/:inviteCode', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'join.html'));
+});
+
+// --- Manejo de errores ---
+app.use((error, req, res, next) => {
+  console.error('❌ Error no manejado:', error);
+  res.status(500).json({ ok: false, error: 'Error interno del servidor', message: error.message });
+});
+
+app.use('*', (req, res) => {
+  res.status(404).json({ ok: false, error: 'Ruta no encontrada', path: req.originalUrl });
+});
+
+// --- Inicio del servidor ---
+async function startServer() {
   try {
-    const { id, continueUri, continueAccessToken } = req.body || {};
-    if (!id || !continueUri || !continueAccessToken) {
-      return res.status(400).json({ error: "Faltan id, continueUri y/o continueAccessToken" });
+    if (!fs.existsSync(INTERLEDGER_CONFIG.privateKeyPath)) {
+      console.error(`❌ Error: No se encontró el archivo de clave privada: ${INTERLEDGER_CONFIG.privateKeyPath}`);
+      console.log('📝 Asegúrate de que existe el archivo con la clave Ed25519 en formato PEM');
+      process.exit(1);
     }
 
-    const client = await getClient();
-    const finalized = await client.grant.continue({ url: continueUri, accessToken: continueAccessToken });
+    const startPort = parseInt(process.env.PORT || '3001', 10);
+    const port = await findAvailablePort(startPort);
+    if (port !== startPort) console.log(`⚠️  Puerto ${startPort} ocupado, usando puerto ${port}`);
 
-    if (!isFinalizedGrant(finalized)) {
-      return res.status(400).json({
-        error: "Grant de lectura no finalizado después de continue",
-        hint: "Asegúrate de haber autorizado en la página del AS",
+    const server = app.listen(port, () => {
+      console.log('='.repeat(60));
+      console.log('🚀 SERVIDOR DE TANDAS COMUNITARIAS INICIADO');
+      console.log('='.repeat(60));
+      console.log(`📱 Frontend: http://localhost:${port}`);
+      console.log(`🔗 API: http://localhost:${port}/api`);
+      console.log(`🏥 Health Check: http://localhost:${port}/api/health`);
+      console.log(`🔧 Debug Signer: http://localhost:${port}/debug/signer`);
+      console.log('='.repeat(60));
+      console.log(`💰 Wallet Servidor: ${INTERLEDGER_CONFIG.walletUrl}`);
+      console.log(`🔑 Key ID: ${INTERLEDGER_CONFIG.keyId}`);
+      console.log(`📄 Clave Privada: ${INTERLEDGER_CONFIG.privateKeyPath}`);
+      console.log('='.repeat(60));
+      console.log('✅ Sistema listo para crear y manejar tandas');
+      console.log('='.repeat(60));
+    });
+
+    const gracefulShutdown = () => {
+      console.log('🛑 Cerrando servidor...');
+      server.close(() => {
+        console.log('✅ Servidor cerrado exitosamente');
+        process.exit(0);
       });
-    }
-
-    const payment = await client.outgoingPayment.get({
-      url: id,
-      accessToken: finalized.access_token.value,
-    });
-
-    res.json({ ok: true, payment });
-  } catch (err) {
-    console.error("OUTGOING SECURE GET CONTINUE ERROR:", err);
-    res.status(500).json({
-      error: "No se pudo completar la lectura del outgoing (con grant)",
-      message: err?.message || String(err),
-      details: err?.response?.body || err?.response || null,
-    });
+    };
+    process.on('SIGTERM', gracefulShutdown);
+    process.on('SIGINT', gracefulShutdown);
+  } catch (error) {
+    console.error('❌ Error al iniciar servidor:', error);
+    process.exit(1);
   }
+}
+
+async function verifyConfiguration() {
+  console.log('🔍 Verificando configuración...');
+
+  const requiredEnvVars = ['WALLET_ADDRESS_URL', 'KEY_ID', 'PRIVATE_KEY_PATH'];
+  const missingVars = requiredEnvVars.filter((v) => !process.env[v]);
+
+  if (missingVars.length > 0) {
+    console.error('❌ Faltan variables de entorno:');
+    missingVars.forEach((v) => console.error(`   - ${v}`));
+    console.log('💡 Asegúrate de tener un archivo .env con todas las variables requeridas');
+    process.exit(1);
+  }
+
+  if (!fs.existsSync(INTERLEDGER_CONFIG.privateKeyPath)) {
+    console.error(`❌ No se encontró la clave privada: ${INTERLEDGER_CONFIG.privateKeyPath}`);
+    process.exit(1);
+  }
+
+  const keyContent = fs.readFileSync(INTERLEDGER_CONFIG.privateKeyPath, 'utf8');
+  if (!keyContent.includes('BEGIN PRIVATE KEY')) {
+    console.error('❌ El archivo de clave privada no parece ser un PEM válido');
+    process.exit(1);
+  }
+
+  console.log('✅ Configuración verificada');
+}
+
+// Iniciar
+verifyConfiguration().then(startServer).catch((error) => {
+  console.error('❌ Error fatal:', error);
+  process.exit(1);
 });
 
-// === Monta el router de Tandas ===
-app.use("/api/tandas", tandasRouter);
-
-// --- Levantar servidor ---
-app.listen(Number(PORT), () => {
-  console.log(`Servidor escuchando en http://localhost:${PORT}`);
-});
+export default app;

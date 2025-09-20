@@ -1,0 +1,263 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Unirse a Tanda - EduWallet</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    body { 
+      font-family: ui-sans-serif, system-ui; 
+      margin: 0; 
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .header h1 {
+      color: #1f2937;
+      margin: 0 0 10px 0;
+    }
+    .invite-info {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .loading {
+      text-align: center;
+      color: #6b7280;
+      padding: 40px;
+    }
+    .error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 20px;
+      color: #dc2626;
+      margin-bottom: 20px;
+    }
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+    button {
+      background-color: #4f46e5;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    button:hover {
+      background-color: #3730a3;
+    }
+    button:disabled {
+      background-color: #9ca3af;
+      cursor: not-allowed;
+    }
+    .success {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 20px;
+      color: #059669;
+      text-align: center;
+    }
+    .back-link {
+      text-align: center;
+      margin-top: 20px;
+    }
+    .back-link a {
+      color: #4f46e5;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Unirse a Tanda</h1>
+      <p>Completa la información para unirte a esta tanda comunitaria</p>
+    </div>
+
+    <div id="loadingSection" class="loading">
+      <p>Cargando información de la tanda...</p>
+    </div>
+
+    <div id="errorSection" class="error" style="display: none;">
+      <h3>Error</h3>
+      <p id="errorMessage"></p>
+    </div>
+
+    <div id="inviteSection" style="display: none;">
+      <div id="tandaInfo" class="invite-info"></div>
+      
+      <div id="joinForm">
+        <h3>Únete ahora</h3>
+        <input type="text" id="participanteNombre" placeholder="Tu nombre completo" required>
+        <input type="text" id="participanteWallet" placeholder="Tu wallet URL (ej. https://ilp.interledger-test.dev/tuusuario)" required>
+        <button onclick="unirse()" id="joinButton">Unirse a la tanda</button>
+      </div>
+    </div>
+
+    <div id="successSection" class="success" style="display: none;">
+      <h3>¡Te has unido exitosamente!</h3>
+      <div id="successMessage"></div>
+    </div>
+
+    <div class="back-link">
+      <a href="/">← Volver al inicio</a>
+    </div>
+  </div>
+
+  <script>
+    let inviteCode = '';
+    
+    // Obtener código de invitación de la URL
+    function getInviteCodeFromUrl() {
+      const path = window.location.pathname;
+      const match = path.match(/\/join\/([^\/]+)$/);
+      return match ? match[1] : null;
+    }
+
+    // Cargar información de la invitación
+    async function loadInviteInfo() {
+      inviteCode = getInviteCodeFromUrl();
+      
+      if (!inviteCode) {
+        showError('Código de invitación inválido en la URL');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/tandas/invite/${inviteCode}`);
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Error al cargar la información');
+        }
+
+        if (data.ok && data.tanda) {
+          showInviteInfo(data.tanda);
+        } else {
+          throw new Error('Información de tanda no disponible');
+        }
+      } catch (error) {
+        console.error('Error loading invite:', error);
+        showError(error.message);
+      }
+    }
+
+    function showInviteInfo(tanda) {
+      document.getElementById('loadingSection').style.display = 'none';
+      document.getElementById('inviteSection').style.display = 'block';
+
+      const tandaInfo = document.getElementById('tandaInfo');
+      const puedeUnirse = tanda.puedeUnirse;
+
+      tandaInfo.innerHTML = `
+        <h3 style="margin: 0 0 15px 0; color: #059669;">${tanda.nombre}</h3>
+        <p><strong>Descripción:</strong> ${tanda.descripcion || 'Sin descripción'}</p>
+        <p><strong>Monto por persona:</strong> $${tanda.montoPorPersona}</p>
+        <p><strong>Frecuencia de pagos:</strong> ${tanda.frecuencia}</p>
+        <p><strong>Creado por:</strong> ${tanda.creadorNombre}</p>
+        <p><strong>Participantes:</strong> ${tanda.participantesActuales}/${tanda.participantesRequeridos}</p>
+        <p><strong>Estado:</strong> ${tanda.estado}</p>
+      `;
+
+      const joinForm = document.getElementById('joinForm');
+      if (puedeUnirse) {
+        joinForm.style.display = 'block';
+      } else {
+        joinForm.innerHTML = `
+          <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 15px; color: #dc2626; text-align: center;">
+            <strong>Esta tanda ya no acepta participantes</strong><br>
+            <small>La tanda está completa o ya no está abierta para nuevos miembros.</small>
+          </div>
+        `;
+      }
+    }
+
+    function showError(message) {
+      document.getElementById('loadingSection').style.display = 'none';
+      document.getElementById('errorSection').style.display = 'block';
+      document.getElementById('errorMessage').textContent = message;
+    }
+
+    async function unirse() {
+      const nombre = document.getElementById('participanteNombre').value.trim();
+      const wallet = document.getElementById('participanteWallet').value.trim();
+      const button = document.getElementById('joinButton');
+
+      if (!nombre || !wallet) {
+        alert('Por favor completa todos los campos');
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = 'Uniéndose...';
+
+      try {
+        const response = await fetch(`/api/tandas/join/${inviteCode}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            participanteNombre: nombre,
+            participanteWalletLink: wallet
+          })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.ok) {
+          showSuccess(data);
+        } else {
+          throw new Error(data.error || 'Error al unirse a la tanda');
+        }
+      } catch (error) {
+        console.error('Error joining tanda:', error);
+        alert(`Error: ${error.message}`);
+        
+        button.disabled = false;
+        button.textContent = 'Unirse a la tanda';
+      }
+    }
+
+    function showSuccess(data) {
+      document.getElementById('inviteSection').style.display = 'none';
+      document.getElementById('successSection').style.display = 'block';
+      
+      document.getElementById('successMessage').innerHTML = `
+        <p><strong>Tanda:</strong> ${data.tanda.nombre}</p>
+        <p><strong>Tu posición:</strong> ${data.tanda.tuPosicion}</p>
+        <p><strong>Monto por ronda:</strong> $${data.tanda.montoPorPersona}</p>
+        <p><strong>Participantes actuales:</strong> ${data.tanda.participantesActuales}/${data.tanda.participantesRequeridos}</p>
+        <p><strong>Estado:</strong> ${data.tanda.estado}</p>
+        ${data.tanda.estado === 'completa' ? 
+          '<p style="color: #059669;"><strong>¡La tanda está completa y lista para comenzar!</strong></p>' : 
+          '<p>Esperando a que se unan más participantes...</p>'
+        }
+      `;
+    }
+
+    // Cargar información al cargar la página
+    window.addEventListener('load', loadInviteInfo);
+  </script>
+</body>
+</html>
