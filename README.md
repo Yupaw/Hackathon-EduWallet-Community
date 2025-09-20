@@ -26,6 +26,6 @@ Star the app:
 Technologies used:
  - Frontend: React, HTML, CSS
  - Backend: Node.js, Express
- - Database: Supabase
+
 
 
