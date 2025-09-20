@@ -1,0 +1,195 @@
+:root {
+  --paper:#F9FAFB;
+  --panel:#FFFFFF;
+  --ink:#111827;
+  --muted:#6B7280;
+  --bd:#E5E7EB;
+
+  --yellow:#F7C948;
+  --green:#22C55E;
+  --green-dark:#0E9F6E;
+  --blue:#38BDF8;
+  --coral:#F43F5E;
+
+  --radius:14px;
+  --shadow: 0 8px 28px rgba(17,24,39,.08);
+}
+
+* { box-sizing: border-box; }
+
+/* CENTRAR TODA LA VISTA */
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #f0f7ff, #e8eefb);
+}
+
+/* CONTENEDOR PRINCIPAL */
+.auth {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* TARJETA DIVIDIDA EN DOS COLUMNAS */
+.auth > .card {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) 420px; /* izquierda flexible, derecha fija */
+  width: 960px;
+  max-width: 95vw;
+  border-radius: 24px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(16, 24, 40, 0.12);
+}
+
+/* LADO IZQUIERDO */
+.auth > .card .left {
+  padding: 40px 36px 28px;
+  background: #fff;
+}
+
+/* LADO DERECHO (panel morado) */
+.auth > .card .right {
+  background: radial-gradient(120% 120% at 0% 0%, #5a31d3 0%, #3a0ca3 60%, #2a0a73 100%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 40px 32px;
+}
+
+/* FORMULARIO */
+.field { position: relative; display: block; margin-bottom: 12px; }
+.field input {
+  width: 100%;
+  background: #fff;
+  color: var(--ink);
+  border: 2px solid var(--bd);
+  border-radius: 12px;
+  padding: 12px 14px;
+  outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.field input::placeholder { color: #9CA3AF; }
+.field input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 4px rgba(56,189,248,.18);
+}
+
+/* Botón mostrar contraseña */
+.showpass {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: #2563EB;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* BOTONES */
+.btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: transform .05s ease, filter .15s ease;
+}
+.btn:active { transform: translateY(1px); }
+
+.btn--primary {
+  background: var(--green);
+  color: #fff;
+  font-weight: 800;
+}
+.btn--primary:hover { filter: brightness(1.03); }
+
+/* MARCA */
+.brand {
+  font-weight: 900;
+  font-size: 34px;
+  text-align: center;
+  margin: 0 0 8px;
+  position: relative;
+  display: inline-block;
+}
+/*.brand::after {
+  content: "";
+  position: absolute;
+  right: -14px;
+  top: 4px;
+  width: 10px;
+  height: 22px;
+  background: var(--blue);
+  border-radius: 3px;
+}*/
+
+/* SUBTÍTULO */
+.subtitle {
+  color: var(--muted);
+  text-align: center;
+  margin: 0 0 16px;
+}
+
+/* TEXTO LEGAL */
+.legal {
+  margin-top: 14px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.legal a { color: var(--coral); font-weight: 600; }
+
+/* RESPONSIVE */
+@media (max-width: 860px) {
+  .auth > .card {
+    grid-template-columns: 1fr;
+    width: 100%;
+    border-radius: 0;
+    max-width: 100vw;
+  }
+  .auth > .card .right {
+    min-height: 220px;
+    order: -1; /* panel morado arriba */
+  }
+}
+.field select {
+  width: 100%;
+  background: #fff;
+  color: var(--ink);
+  border: 2px solid var(--bd);
+  border-radius: 12px;
+  padding: 12px 14px;
+  outline: none;
+  font-size: 0.9rem;
+  appearance: none; /* elimina la flecha por defecto */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+ /* background-image: url("data:image/svg+xml,%3Csvg fill='%236B7280' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.24 4.5a.75.75 0 01-1.08 0l-4.24-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E");*/
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 18px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.field select:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 4px rgba(56, 189, 248, .18);
+}
+.right .welcome-img {
+  margin-top: 24px;
+  max-width: 80%;
+  height: auto;
+}

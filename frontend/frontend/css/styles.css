@@ -1,0 +1,98 @@
+:root {
+  --bg:#eef1f5;
+  --card:#ffffff;
+  --text:#222;
+  --muted:#5b6471;
+  --primary:#1b66ff;
+  --success:#22b14c;
+  --ghost:#2f3640;
+  --radius:16px;
+  --shadow: 0 10px 24px rgba(0,0,0,.08);
+}
+
+* {
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+  font-family: Inter, Arial, sans-serif;
+}
+
+body {
+  background-color: var(--bg);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== Container principal (logo izquierda + tarjeta derecha) ===== */
+.container {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  width:80%;
+  max-width:1200px;
+  margin:40px auto;
+  gap:40px;
+}
+
+.left { flex:1; }
+.right { flex:1; display:flex; justify-content:center; }
+
+.logo { width:180px; margin-bottom:20px; }
+.brand { font-size:48px; color:var(--primary); margin-bottom:10px; font-weight:700; }
+.slogan { font-size:20px; color:#333; margin-bottom:20px; }
+.hero-img { width:100%; max-width:400px; margin-top:20px; }
+
+/* ===== Card bienvenida ===== */
+.card {
+  background:#fff;
+  padding:30px;
+  border-radius:12px;
+  box-shadow:var(--shadow);
+  width:320px;
+  text-align:center;
+}
+.card h2 { margin-bottom:15px; color:#333; }
+.card__muted { margin-top:12px; font-size:12px; color:var(--muted); }
+
+/* ===== Botones ===== */
+.btn-login, .btn-register {
+  display:block;
+  text-decoration:none;
+  color:white;
+  padding:12px;
+  margin:10px 0;
+  border-radius:6px;
+  font-size:16px;
+}
+.btn-login { background:var(--primary); }
+.btn-login:hover { background:#145dbf; }
+.btn-register { background:var(--success); }
+.btn-register:hover { background:#369b21; }
+
+.btn {display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;border-radius:12px;border:1px solid transparent;font-weight:600;text-decoration:none;cursor:pointer;}
+.btn--primary {background:var(--primary);color:#fff;}
+.btn--ghost {background:#fff;border-color:#d9dfe7;color:var(--ghost);}
+.btn--sm {padding:8px 12px;font-size:13px;}
+
+/* ===== Feed de cursos ===== */
+.feed { max-width:1200px; margin:20px auto 60px; padding:0 20px; }
+.feed__title { margin:0 0 12px; font-size:20px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+
+.course { background:#fff; border-radius:14px; box-shadow:var(--shadow); overflow:hidden; display:flex; flex-direction:column; }
+.course__img { width:100%; height:160px; object-fit:cover; }
+.course__body { padding:14px; display:flex; flex-direction:column; gap:6px; }
+.course__title { margin:0; font-size:16px; font-weight:600; }
+.course__meta { color:var(--muted); font-size:13px; }
+.course__price { font-weight:700; margin-top:4px; }
+.course__actions { margin-top:8px; display:flex; gap:8px; }
+
+/* ===== Footer ===== */
+.footer { padding:24px; text-align:center; color:var(--muted); margin-top:auto; }
+
+/* ===== Responsivo ===== */
+@media (max-width: 980px) {
+  .container { flex-direction:column; gap:24px; text-align:center; }
+  .left, .right { flex:none; }
+}
